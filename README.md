@@ -1,19 +1,21 @@
 <div align="center">
 
 # 📡 DirectLink Walkie-Talkie
-### Instant, Zero-Latency, End-to-End Encrypted Intercom for Phone & Laptop
+### Instant, Zero-Latency, Two-Way Audio Intercom for Phone & Laptop
+#### Split Codebases for Phone & Laptop • 3 Connection Modes • Authentic Tactical Acoustics
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![WebRTC](https://img.shields.io/badge/WebRTC-DTLS--SRTP-blue.svg)](https://webrtc.org/)
+[![Android APK](https://img.shields.io/badge/Android-APK%20Ready-green.svg)](https://capacitorjs.com/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable-purple.svg)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/BogguAjayKumar/directlink-walkie-talkie/pulls)
 
-**DirectLink** is a lightweight, hardware-like Push-to-Talk (PTT) audio intercom system that pairs your **phone and laptop** over **local Wi-Fi** or **cellular mobile data (4G/5G)**. 
+**DirectLink** is a lightweight, hardware-like Push-to-Talk (PTT) full-duplex audio intercom system exclusively designed to pair your **laptop and phone** over **local Wi-Fi**, **cellular mobile data (4G/5G)**, or **virtual walkie-talkie radio frequencies**.
 
-No ringing, no answering screens, no call pickups—press or hold to talk, and your voice broadcasts instantly through the speaker with authentic tactical radio acoustics (mic clicks, squelch tails, and NASA Roger beeps).
+No ringing, no answering screens, no call pickups—press or hold to talk, and your voice broadcasts instantly through the other device's speaker with authentic tactical radio acoustics (mic clicks, squelch tails, and Motorola/NASA Roger beeps).
 
-[Key Features](#-key-features) • [Quick Start](#-quick-start) • [Phone Installation Guide](#-mobile-pwa-installation-guide) • [Architecture](#-architecture) • [Security](#-security--privacy) • [Docs](#-documentation)
+[Key Features](#-key-features) • [Separate File Architecture](#-separate-file-architecture) • [Quick Start](#-quick-start) • [How to Test Two-Way Audio](#-how-to-test-two-way-audio) • [3 Connection Modes](#-3-tactical-connection-modes) • [Android APK](#-native-android-app-apk) • [Security](#-security--privacy)
 
 ---
 
@@ -21,200 +23,167 @@ No ringing, no answering screens, no call pickups—press or hold to talk, and y
 
 ## 🚀 Key Features
 
-* **Instant Hardware-like Walkie-Talkie:** 
-  Zero pickup friction. Once paired, the two devices maintain a persistent, bidirectional WebRTC audio standby line. Tap or hold to transmit immediately.
+* **True Two-Way Real-Time Voice:**
+  Instant hardware-like communication. Talk on your laptop → heard instantly on your phone. Talk on your phone → heard instantly on your laptop.
+* **Completely Separated Codebases for Phone & Laptop:**
+  Independent, modular code files for each device. Easily locate, tweak, and style the phone app or laptop app without interfering with each other:
+  * **Phone Walkie-Talkie:** `public/phone.html`, `public/phone.js`, `public/phone.css`
+  * **Laptop Command Station:** `public/laptop.html`, `public/laptop.js`, `public/laptop.css`
 * **3 Tactical Connection Modes:**
-  * **1. Local Wi-Fi (LAN Mode):** Ultra-fast sub-10ms peer-to-peer audio on the same Wi-Fi network without requiring external internet.
-  * **2. Mobile Data + Wi-Fi (WAN Relay Mode):** Encrypted global HTTPS/WSS tunnel allowing phone on 4G/5G mobile data to communicate with laptop anywhere in the world.
-  * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Tune to authentic UHF/FM/FRS frequencies (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or dial custom MHz). Tuning both devices to the same frequency links them instantly!
-* **Live Device Name & Connection Status Display:**
-  Prominent real-time status banners on both Laptop and Phone interfaces displaying live link state and device identity (`PHONE CONNECTED: Handheld Phone` / `LAPTOP CONNECTED: Command Laptop`).
-* **Zero-Touch Persistent Auto-Connect:**
-  Pair once—never re-type PINs or reconnect manually again. The app automatically restores the master bonded connection on launch and handles network switches seamlessly within 1.5s.
-* **Android APK with Auto-Granted Mic Permissions:**
-  Capacitor native Android app pre-configured with Android runtime audio permissions and `BridgeWebChromeClient` WebRTC grants to avoid WebView mic permission loops. Direct APK download available directly from the server.
-* **Tactical Cyberpunk / Military UI:**
-  * Real-time **Oscilloscope Audio Visualizer** rendering outgoing and incoming speech waveforms directly on an HTML5 Canvas.
-  * Responsive tactile **Push-to-Talk (PTT)** button with haptic vibration on mobile devices.
-  * Desktop **Spacebar Hotkey** support (`Hold Spacebar to Talk`).
-  * Seamless mode switcher between **"Hold to Talk"** and **"Handsfree / Toggle Mode"**.
+  * **1. Local Wi-Fi (LAN Mode):** Sub-10ms direct peer-to-peer audio over your home or office Wi-Fi. Zero external internet required.
+  * **2. Mobile Data + Wi-Fi (WAN Relay Mode):** Built-in encrypted HTTPS/WSS tunnel allowing you to communicate anywhere in the world when your phone is on 4G/5G cellular data and your laptop is at home.
+  * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Dial standard UHF/FM/FRS walkie-talkie channels (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or custom MHz). Tuning both devices to the same frequency links them instantly!
+* **Distinct Visual Interfaces:**
+  * **💻 Laptop Console HUD:** Wide cyberpunk/military terminal in deep navy & cyan with dual real-time oscilloscopes, VU meters (MIC & RX), Spacebar hotkey deck (`PRESS & HOLD SPACEBAR TO BROADCAST`), and audio DSP dials.
+  * **📱 Phone Transceiver:** Authentic handheld radio chassis with top antenna, rotary volume/channel knobs, backlit fluorescent green LCD screen showing battery & signal strength, speaker grille, and a giant rubberized Push-To-Talk button.
+* **Persistent Zero-Touch Auto-Connect:**
+  Pair once—never re-type PINs or manually reconnect again. Devices automatically remember each other, restore the master bonded channel on startup, and auto-reconnect within 1.5 seconds if network drops or changes.
+* **Conflict-Free Role Negotiation:**
+  The server automatically assigns complimentary roles (`laptop` <-> `phone`) so both devices always link together without kicking each other out.
 * **Procedural Acoustic Synthesizer (Web Audio API):**
-  No static `.mp3` or `.wav` assets. All radio sound effects are dynamically synthesized on the client:
-  * **Mic-Open Click** (high-frequency resonant pulse).
-  * **NASA/Motorola Roger Beep** (dual-frequency sine tone on transmission release).
+  Zero external audio downloads. All sound effects are dynamically synthesized on the fly:
+  * **Tactical Mic-Open Click** (high-frequency resonant pulse).
+  * **Motorola / NASA Quindar Roger Beep** (dual-frequency sine tone on transmission release).
   * **Radio Squelch Tail** (bandpass-filtered white noise burst).
-* **Zero-Typing Phone Pairing:**
-  Laptop screen generates a tactical QR Code encoding the active room channel, security PIN, and server endpoint. Scan with your phone's camera to connect and arm audio instantly.
-* **Installable Progressive Web App (PWA):**
-  Installs as a native standalone app on Android and iOS with Screen Wake Lock support to prevent mobile devices from sleeping during conversations.
-* **End-to-End Encrypted (E2EE):**
-  All voice streams are encrypted directly between devices using DTLS-SRTP. Zero voice data is ever saved or buffered on disk or server.
 
 ---
 
-## 🛠 System Architecture
+## 🗂 Separate File Architecture
 
-```mermaid
-graph LR
-    subgraph "Laptop / Workstation"
-        UI_L[Web Dashboard / PWA]
-        Audio_L[Web Audio API Graph]
-        PC_L[WebRTC PeerConnection]
-    end
+DirectLink is cleanly structured into dedicated, modular files for each device:
 
-    subgraph "Signaling Server (Node.js)"
-        WSS[WebSocket Hub :8443]
-        HTTPS[Express + Self-Signed TLS]
-        Tunnel[localtunnel WAN Proxy]
-    end
-
-    subgraph "Smartphone (Android / iOS)"
-        UI_P[Mobile Standalone PWA]
-        Audio_P[Web Audio API + Haptics]
-        PC_P[WebRTC PeerConnection]
-    end
-
-    UI_L <-->|WSS Signaling| WSS
-    UI_P <-->|WSS Signaling| WSS
-    PC_L <===>|Direct DTLS-SRTP Audio (P2P)| PC_P
+```text
+directlink-walkie-talkie/
+├── public/
+│   ├── phone.html          # 📱 Dedicated Mobile Walkie-Talkie UI
+│   ├── phone.js            # 📱 Phone client logic, touch PTT & mobile WebRTC
+│   ├── phone.css           # 📱 Handheld radio chassis & green LCD styles
+│   │
+│   ├── laptop.html         # 💻 Dedicated Laptop Command Base Station UI
+│   ├── laptop.js           # 💻 Laptop client logic, spacebar hotkey & audio DSP
+│   ├── laptop.css          # 💻 Military terminal console HUD styles
+│   │
+│   ├── sound-effects.js    # 🔊 Procedural Web Audio API sound synthesizer
+│   ├── app-debug.apk       # 📲 Direct Android APK download file
+│   ├── manifest.json       # 📱 PWA manifest configuration
+│   └── sw.js               # ⚡ Service Worker for offline caching
+│
+├── android/                # 🤖 Native Android Studio Capacitor project
+├── certs/                  # 🔒 Auto-generated TLS certificates & master bonded pair
+├── server.js               # 🌐 Node.js dual HTTP (:8080) & HTTPS (:8443) signaling hub
+├── capacitor.config.json   # ⚙️ Android Capacitor bridge configuration
+├── package.json            # 📦 Project dependencies & scripts
+└── test-signaling.js       # 🧪 Automated protocol & security test suite
 ```
-
-*For an in-depth breakdown of the audio processing pipeline and network topologies, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).*
 
 ---
 
 ## ⚡ Quick Start
 
-### Prerequisites
-* [Node.js](https://nodejs.org/) (v18.0.0 or higher recommended)
-* A laptop/PC and a mobile phone connected to the same Wi-Fi network (or mobile data).
-* Modern web browser (Chrome, Edge, Brave, or Safari).
+### 1. Prerequisites
+* [Node.js](https://nodejs.org/) (v18.0.0 or higher)
+* A laptop and a phone connected to the same Wi-Fi network (or mobile data)
 
-### 1. Clone & Install Dependencies
+### 2. Install & Start Server
 ```bash
 git clone https://github.com/BogguAjayKumar/directlink-walkie-talkie.git
 cd directlink-walkie-talkie
 npm install
-```
-
-### 2. Launch the Intercom Server
-```bash
 npm start
 ```
-*(On Windows, you can simply double-click `start.bat`)*
+*(On Windows, you can also double-click `start.bat`)*
 
-The server will automatically generate fresh self-signed TLS certificates for local HTTPS and print:
+The server will initialize on both **HTTP (:8080)** and **HTTPS (:8443)**:
 ```text
 ===============================================================
-   DIRECTLINK WALKIE-TALKIE SERVER INITIALIZED & READY
+   DIRECTLINK TACTICAL INTERCOM SERVER IS ONLINE & READY
 ===============================================================
-Local Access (Laptop):
-   https://localhost:8443
+💻 LAPTOP ACCESS:
+   👉 http://localhost:8080/laptop  (or https://localhost:8443)
 
-Local Network (Phone on same Wi-Fi):
-   https://192.168.0.142:8443  [Wi-Fi]
+📱 PHONE ACCESS (Same Wi-Fi):
+   👉 http://192.168.0.142:8080/phone
+   👉 Direct APK Download: http://192.168.0.142:8080/app-debug.apk
+
+🌍 MOBILE DATA WAN (4G/5G / Global Internet):
+   Click "Mobile Data WAN" on your laptop screen to generate public link.
 ===============================================================
 ```
 
-### 3. Open on Laptop
-1. Open your browser and navigate to **`https://localhost:8443`**.
-2. Click **Advanced → Proceed to localhost** (bypasses the self-signed developer certificate).
-3. Allow **Microphone** permission when requested.
-4. Click **"Connect Intercom"**.
+---
+
+## 🎙 How to Test Two-Way Audio
+
+### Step 1: Open on Laptop
+1. Open Chrome or Edge on your laptop and navigate to:  
+   👉 **`http://localhost:8080/laptop`**
+2. The laptop console HUD will load. You will see:  
+   `○ PHONE DISCONNECTED (Waiting for Phone to link...)`
+
+### Step 2: Open on Phone
+1. Open Chrome or Safari on your phone and navigate to:  
+   👉 **`http://192.168.0.142:8080/phone`**  
+   *(Or install the Android APK: `http://192.168.0.142:8080/app-debug.apk`)*
+2. If prompted, tap the amber **"🎙️ TAP HERE TO ARM PHONE MICROPHONE"** banner to allow microphone access.
+3. The phone interface loads the rugged **Handheld Walkie-Talkie** chassis with the green LCD screen.
+
+### Step 3: Connection Confirmation
+* **On Laptop:** The banner turns glowing green: `🟢 PHONE CONNECTED: Handheld Phone [LIVE]`
+* **On Phone:** The banner turns glowing green: `🟢 LAPTOP CONNECTED: Command Laptop [LIVE]`
+
+### Step 4: Talk Between Devices
+* **From Laptop → Hear on Phone:**  
+  Press and hold **`SPACEBAR`** on your laptop and speak. Your voice broadcasts out loud through your phone's speaker! Release Spacebar to trigger the Roger Beep.
+* **From Phone → Hear on Laptop:**  
+  Touch and hold the big circular **`HOLD TO TALK`** button on your phone and speak. Your voice broadcasts out loud through your laptop's speaker! Release to trigger the Roger Beep.
 
 ---
 
-## 📱 Mobile PWA Installation Guide
+## 📶 3 Tactical Connection Modes
 
-DirectLink is built as a **Progressive Web App (PWA)**. You do not need to compile an APK or install an app from the App Store.
+Select any mode from the top bar on either device:
 
-### Step 1: Open the Pairing Link on Your Phone
-
-#### Mode A: Both Devices on Local Wi-Fi
-1. On your laptop, click **"Pair Phone"** to reveal the pairing QR Code.
-2. Ensure the dropdown is set to `Local Wi-Fi Network`.
-3. Open your phone's Camera or QR scanner and scan the QR code.
-4. Open the link in **Chrome** (Android) or **Safari** (iOS).
-5. Tap **Advanced → Proceed to unsafe** (first time only, for local HTTPS certificate approval).
-6. The app will auto-fill the channel & PIN and immediately connect!
-
-#### Mode B: Phone on Cellular Data (4G / 5G WAN)
-1. On your laptop, click **"Mobile Data WAN"** in the bottom control bar.
-2. DirectLink will establish a secure public HTTPS relay tunnel.
-3. The QR code automatically updates to the public tunnel link.
-4. Scan the QR code over mobile data. Since it uses a verified public SSL certificate, it connects instantly with **zero security warnings**.
+| Mode | How it Works | Best For |
+| :--- | :--- | :--- |
+| **1. Local Wi-Fi** | Direct high-speed local P2P audio over your home/office network. No external internet bandwidth required. | Home, office, warehouse, campus (< 10ms latency) |
+| **2. Mobile Data + Wi-Fi** | Built-in encrypted WAN tunnel (`localtunnel`). Enables phone on 4G/5G cellular data to communicate with laptop at home. | Talking while traveling, outdoors, or on cellular data |
+| **3. Radio Freq Dial** | Tune to authentic walkie-talkie frequencies (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or dial custom MHz). Tuning both devices to the same frequency connects them instantly. | Authentic tactical walkie-talkie simulation |
 
 ---
 
-### Step 2: Install to Home Screen
+## 🤖 Native Android App (APK)
 
-#### 🤖 Android (Google Chrome)
-1. With DirectLink open in Chrome, tap the **three dots menu (⋮)** in the top-right corner.
-2. Tap **"Install app"** or **"Add to Home screen"**.
-3. Tap **Install** to confirm.
-4. DirectLink is now accessible as a standalone fullscreen app on your home screen and launcher.
+DirectLink includes a full native Android project powered by **Capacitor**:
 
-#### 🍏 iPhone / iPad (Safari)
-1. Open the pairing URL in **Safari** (Apple requires Safari for PWA installation).
-2. Tap the **Share** button (square with an arrow pointing up at the bottom).
-3. Scroll down and tap **"Add to Home Screen"**.
-4. Tap **Add** in the top-right corner.
+### Method A: Direct Download to Phone (No Compiling Needed)
+1. On your phone's browser, open:  
+   👉 **`http://192.168.0.142:8080/app-debug.apk`**
+2. Download and tap to install (enable *"Install unknown apps"* if prompted).
+3. Open **DirectLink** on your phone—it connects directly to your laptop's intercom!
 
----
-
-## 🤖 Native Android App (Capacitor & Android Studio)
-
-DirectLink is also packaged as a **native Android project** powered by **Capacitor**. You can open it in Android Studio to build and export a standalone `.apk` or `.aab`.
-
-### 1. Open in Android Studio
-Launch Android Studio and open the `android/` directory:
+### Method B: Build from Android Studio
 ```bash
 npx cap open android
 ```
-*(Or launch Android Studio directly and select `Open` -> select the `L2PC/android` folder).*
+In Android Studio: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
 
-### 2. Build APK in Android Studio
-1. Wait for Gradle sync to complete.
-2. In the top menu, go to **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
-3. Once completed, Android Studio will display a notification: *"APK(s) generated successfully"*.
-4. Click **locate** to reveal the output `app-debug.apk`.
-
-### 3. Build APK via Command Line
-If you prefer building directly from the terminal without opening Android Studio:
+### Method C: Build via Command Line
 ```bash
-# Sync any web assets:
-npx cap sync android
-
-# Build debug APK using the Gradle wrapper:
+cmd /c "npx cap sync android"
 cd android
 ./gradlew assembleDebug
 ```
-The generated APK will be output at:
+The compiled APK is output at:  
 `android/app/build/outputs/apk/debug/app-debug.apk`
-
-Transfer this `.apk` to your phone and tap to install! (Ensure *Install unknown apps* permission is enabled).
-
----
-
-## 🎙 How to Operate
-
-| Action | Laptop / Desktop | Smartphone (PWA) |
-| :--- | :--- | :--- |
-| **Push-to-Talk (PTT)** | Hold **`SPACEBAR`** or hold central button | Hold the circular **"Hold to Talk"** button |
-| **End Transmission** | Release Spacebar (Triggers Roger Beep) | Release button (Triggers Roger Beep) |
-| **Handsfree / Toggle Mode** | Click **"Hold Mode"** to toggle to **"Toggle Mode"** | Tap mode button to toggle mic on / off |
-| **Mute Roger Beeps** | Click the **"Roger Beep"** icon | Tap the **"Roger Beep"** icon |
-| **Screen Wake Lock** | N/A | Kept awake automatically during active sessions |
 
 ---
 
 ## 🔒 Security & Privacy
 
-* **Strict 2-Device Channels:** Each channel strictly limits participation to exactly 1 laptop and 1 phone. Any 3rd party attempting to connect is immediately blocked.
-* **Cryptographic 6-Digit PINs:** Rooms are protected by random 6-digit session PINs.
-* **Anti-Brute-Force Rate Limiting:** Automated PIN guessing triggers immediate IP-level rate limiting and cooldown locks.
-* **DTLS-SRTP Audio Encryption:** Direct WebRTC media tracks are encrypted point-to-point. The signaling server never decrypts or inspects voice streams.
-* **Zero Audio Persistence:** No voice recordings, transcripts, or user media are ever recorded or written to disk.
+* **Exclusive 2-Device Master Channels:** Each intercom channel is strictly limited to 1 laptop and 1 phone. Third-party devices are rejected automatically.
+* **Cryptographic 6-Digit PINs:** Master channels are secured by session PINs and persistent pairing tokens.
+* **End-to-End Encrypted (DTLS-SRTP):** WebRTC voice streams travel directly between devices encrypted end-to-end. The signaling server never records, buffers, or inspects audio data.
+* **Anti-Brute-Force Rate Limiting:** Automated guessing attempts trigger immediate IP-level cooldown locks.
 
 ---
 
@@ -223,48 +192,17 @@ Transfer this `.apk` to your phone and tap to install! (Ensure *Install unknown 
 DirectLink includes an automated end-to-end signaling and security verification test suite:
 
 ```bash
-# Make sure server is running, then run in another terminal:
-npm test
+node test-signaling.js
 ```
 
-### Test Coverage:
+### Verified Tests:
 - [x] WebSocket client connection and handshake
 - [x] Room creation and PIN validation
 - [x] Peer arrival state notifications
 - [x] Real-time Push-To-Talk state synchronization
+- [x] Dynamic conflict-free role adaptation
 - [x] Rejection of unauthorized PIN attempts
 - [x] Rejection of 3rd device intrusion attempts
-
----
-
-## 📚 Documentation
-
-* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Comprehensive technical architecture, Web Audio synthesis graph, and network models.
-* [docs/SIGNALING_PROTOCOL.md](docs/SIGNALING_PROTOCOL.md) — Complete WebSocket message schema and REST API specifications.
-
----
-
-## 📁 Repository Structure
-
-```text
-directlink-walkie-talkie/
-├── certs/                 # Cached self-signed TLS certificates (generated on first boot)
-├── docs/
-│   ├── ARCHITECTURE.md    # Detailed audio graph and network architecture
-│   └── SIGNALING_PROTOCOL.md # WebSocket event schema & REST endpoints
-├── public/                # Client PWA Assets
-│   ├── app.js             # WebRTC engine, PTT controller & audio router
-│   ├── index.html         # Cyberpunk tactical intercom UI
-│   ├── manifest.json      # PWA manifest for standalone home-screen installation
-│   ├── sound-effects.js   # Procedural Web Audio API sound synthesizer
-│   ├── style.css          # Tactical visual design & responsive layout
-│   └── sw.js              # PWA Service Worker for offline caching
-├── server.js              # Express + HTTPS + WebSocket signaling hub
-├── start.bat              # 1-Click launcher for Windows
-├── test-signaling.js      # Automated protocol & security test suite
-├── package.json           # Dependencies and project metadata
-└── README.md              # Project documentation
-```
 
 ---
 
