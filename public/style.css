@@ -139,36 +139,155 @@ header {
   border-color: rgba(253, 224, 71, 0.3);
 }
 
-.btn-view-switch {
-  background: rgba(0, 255, 204, 0.12);
-  border: 1px solid var(--accent-ready);
-  color: var(--accent-ready);
+.interface-mode-toggle {
+  display: flex;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.btn-interface-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
   padding: 5px 12px;
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   transition: all 0.2s ease;
+  letter-spacing: 0.5px;
 }
 
-.btn-view-switch:hover {
-  background: var(--accent-ready);
-  color: #000;
-  box-shadow: 0 0 12px var(--accent-ready-glow);
+.btn-interface-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-interface-tab.active {
+  background: rgba(0, 255, 204, 0.15);
+  border-color: var(--accent-ready);
+  color: var(--accent-ready);
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.25);
+}
+
+/* Master Device Identity Banners (Distinguishes Laptop vs Phone clearly) */
+.device-identity-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.device-identity-banner .identity-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.device-identity-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.identity-title {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.identity-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  opacity: 0.75;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+
+.identity-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Laptop Theme: Electric Cyan / Military Terminal */
+.laptop-identity {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.12);
+}
+
+.laptop-identity .identity-title {
+  color: #38bdf8;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.laptop-identity .identity-subtitle {
+  color: #bae6fd;
+}
+
+.identity-tag.laptop {
+  background: rgba(14, 165, 233, 0.2);
+  border: 1px solid #38bdf8;
+  color: #38bdf8;
+}
+
+/* Phone Theme: Tactical Amber / Field Walkie-Talkie */
+.phone-identity {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.18) 0%, rgba(20, 24, 33, 0.95) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15);
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.phone-identity .identity-title {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.phone-identity .identity-subtitle {
+  color: #fde68a;
+}
+
+.identity-tag.phone {
+  background: rgba(245, 158, 11, 0.25);
+  border: 1px solid #fbbf24;
+  color: #fbbf24;
 }
 
 /* View Container Visibility Toggles */
 .view-container {
   display: none;
   flex: 1;
+  width: 100%;
 }
 
 body.view-laptop #laptopConsole {
   display: flex;
+  flex-direction: column;
 }
 
 body.view-mobile #mobileTransceiver {
   display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* ============================================================== */

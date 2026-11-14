@@ -131,6 +131,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Explicit Friendly Routes for Phone & Laptop
+app.get(['/phone', '/mobile'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get(['/laptop', '/desktop', '/pc'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Detailed Connection & Request Logger for Easy Debugging
 app.use((req, res, next) => {
   if (!req.url.startsWith('/api/qr')) {
@@ -318,7 +327,7 @@ async function startServer() {
 
       switch (data.type) {
         case 'join': {
-          const { roomId, pin, role, deviceName } = data;
+          let { roomId, pin, role, deviceName } = data;
           console.log(`[JOIN ATTEMPT] Device (${role || 'device'}) joining "${roomId}" from ${clientIp}`);
           if (!roomId || !pin) {
             ws.send(JSON.stringify({ type: 'error', message: 'Room ID and PIN are required' }));
@@ -363,43 +372,57 @@ async function startServer() {
               return;
             }
 
-            // UNINTERRUPTED RECONNECT LOGIC:
-            // Only replace stale socket if it is the authorized master bond with the matching secret pairToken
-            if (isMaster && data.pairToken === bondedPair.pairToken) {
-              for (const [existingWs, existingPeer] of room.peers.entries()) {
-                if (existingPeer.role === role && existingWs !== ws) {
-                  console.log(`[RECONNECT] Replacing stale connection for bonded role: ${role}`);
-                  try {
-                    existingWs.send(JSON.stringify({ type: 'replaced', message: 'New connection opened from same device' }));
-                    existingWs.close(1000, 'Replaced');
-                  } catch (e) {}
-                  room.peers.delete(existingWs);
-                }
+            // 1. Purge any truly closed or dead sockets in this room
+            for (const [existingWs] of room.peers.entries()) {
+              if (existingWs.readyState !== WebSocket.OPEN) {
+                console.log(`[CLEANUP] Purged disconnected socket from room "${roomId}"`);
+                room.peers.delete(existingWs);
               }
             }
 
-            // Room capacity limit: 2 devices (Phone + Laptop direct walkie-talkie)
-            if (room.peers.size >= 2) {
+            // 2. Intelligent Conflict-Free Role Assignment:
+            // Ensure 1 Laptop and 1 Phone pair cleanly. If requested role is already occupied by a live connection,
+            // adapt to the complimentary role rather than disconnecting the peer.
+            let requestedRole = role || 'laptop';
+            let roleAlreadyTaken = false;
+            for (const [existingWs, existingPeer] of room.peers.entries()) {
+              if (existingWs !== ws && existingPeer.role === requestedRole && existingWs.readyState === WebSocket.OPEN) {
+                roleAlreadyTaken = true;
+                break;
+              }
+            }
+
+            let finalRole = requestedRole;
+            if (roleAlreadyTaken) {
+              finalRole = (requestedRole === 'laptop') ? 'phone' : 'laptop';
+              console.log(`[ROLE ADAPTATION] Role "${requestedRole}" is active. Auto-assigned complimentary role "${finalRole}" to link as direct pair.`);
+            }
+
+            // 3. Room capacity limit: strictly 2 devices (Phone + Laptop direct walkie-talkie)
+            if (room.peers.size >= 2 && !room.peers.has(ws)) {
               ws.send(JSON.stringify({ type: 'error', message: 'Channel is full (maximum 2 devices connected)' }));
               return;
             }
+
+            role = finalRole;
           }
 
           // Reset IP attempts on successful auth
           pinAttempts.delete(clientIp);
 
           currentRoomId = roomId;
+          const assignedRole = role || 'laptop';
           const peerInfo = {
-            role: role || 'device',
-            name: deviceName || (role === 'laptop' ? 'Command Laptop' : 'Handheld Phone'),
+            role: assignedRole,
+            name: deviceName || (assignedRole === 'laptop' ? 'Command Laptop' : 'Handheld Phone'),
             joinedAt: Date.now()
           };
           room.peers.set(ws, peerInfo);
 
-          if (isMaster && bondedPair.devices[role]) {
-            bondedPair.devices[role].name = peerInfo.name;
-            bondedPair.devices[role].lastSeen = Date.now();
-            bondedPair.devices[role].connected = true;
+          if (isMaster && bondedPair.devices[assignedRole]) {
+            bondedPair.devices[assignedRole].name = peerInfo.name;
+            bondedPair.devices[assignedRole].lastSeen = Date.now();
+            bondedPair.devices[assignedRole].connected = true;
             saveBondedPair(bondedPair);
           }
 
@@ -413,9 +436,11 @@ async function startServer() {
             isInitiator: room.peers.size === 1
           }));
 
-          console.log(`[JOIN SUCCESS] ${peerInfo.name} (${role}) joined "${roomId}". Total devices in channel: ${room.peers.size}/2`);
+          console.log(`[JOIN SUCCESS] ${peerInfo.name} (${assignedRole}) joined "${roomId}". Devices in channel: ${room.peers.size}/2`);
           if (room.peers.size === 2) {
-            console.log(`\n>>> SUCCESS: BOTH DEVICES (LAPTOP & PHONE) ARE LINKED & READY! <<<\n`);
+            console.log(`\n===============================================================`);
+            console.log(`>>> SUCCESS: BOTH DEVICES (LAPTOP & PHONE) ARE LINKED & READY! <<<`);
+            console.log(`===============================================================\n`);
           }
 
           // Notify existing peer

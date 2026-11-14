@@ -178,24 +178,51 @@
   const soundFx = new SoundEffects();
   window.soundEffects = soundFx;
 
-  // --- View Mode Management ---
-  function updateViewMode(view) {
-    currentView = view;
-    if (view === 'laptop') {
+  // Segmented Role & View Switcher Elements
+  const btnSwitchLaptop = document.getElementById('btnSwitchLaptop');
+  const btnSwitchPhone = document.getElementById('btnSwitchPhone');
+
+  // --- View Mode & Device Role Management ---
+  function switchRoleAndView(role, doReconnect = true) {
+    deviceRole = role;
+    currentView = (role === 'laptop') ? 'laptop' : 'mobile';
+    localDeviceName = (role === 'laptop') ? 'Command Laptop' : 'Handheld Phone';
+
+    if (role === 'laptop') {
       body.classList.remove('view-mobile');
       body.classList.add('view-laptop');
-      btnToggleView.textContent = '📱 Handheld UI';
+      if (btnSwitchLaptop) btnSwitchLaptop.classList.add('active');
+      if (btnSwitchPhone) btnSwitchPhone.classList.remove('active');
+      logEvent('Loaded Interface: COMMAND BASE STATION CONSOLE [LAPTOP]');
     } else {
       body.classList.remove('view-laptop');
       body.classList.add('view-mobile');
-      btnToggleView.textContent = '🖥️ Console HUD';
+      if (btnSwitchPhone) btnSwitchPhone.classList.add('active');
+      if (btnSwitchLaptop) btnSwitchLaptop.classList.remove('active');
+      logEvent('Loaded Interface: FIELD WALKIE-TALKIE TRANSCEIVER [PHONE]');
+    }
+
+    localStorage.setItem('directlink_assigned_role', role);
+
+    if (doReconnect && ws && ws.readyState === WebSocket.OPEN && currentRoomId) {
+      logEvent(`Switching active network role to: ${localDeviceName} (${deviceRole})`);
+      ws.send(JSON.stringify({
+        type: 'join',
+        roomId: currentRoomId,
+        pin: currentPin,
+        pairToken: currentPairToken,
+        role: deviceRole,
+        deviceName: localDeviceName
+      }));
     }
   }
 
-  if (btnToggleView) {
-    btnToggleView.addEventListener('click', () => {
-      updateViewMode(currentView === 'laptop' ? 'mobile' : 'laptop');
-    });
+  if (btnSwitchLaptop) {
+    btnSwitchLaptop.addEventListener('click', () => switchRoleAndView('laptop', true));
+  }
+
+  if (btnSwitchPhone) {
+    btnSwitchPhone.addEventListener('click', () => switchRoleAndView('phone', true));
   }
 
   // --- Event Audit Logger ---
@@ -273,9 +300,19 @@
 
   // --- URL & Endpoint Resolution ---
   function resolveServerEndpoints() {
-    let raw = (inputServer && inputServer.value.trim()) || localStorage.getItem('directlink_server_url') || '';
-    let protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
     let host = window.location.host;
+    let protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+
+    // If running in browser (Chrome/Edge/Safari), always default to current host
+    // Only packaged mobile apps (Capacitor file:// or capacitor://) fallback to stored IP
+    const isPackagedMobileApp = window.location.protocol === 'capacitor:' || 
+                               window.location.protocol === 'file:' || 
+                               (window.location.hostname === 'localhost' && /Android/i.test(navigator.userAgent));
+
+    let raw = (inputServer && inputServer.value.trim()) || '';
+    if (!raw && isPackagedMobileApp) {
+      raw = localStorage.getItem('directlink_server_url') || '192.168.0.142:8080';
+    }
 
     if (raw) {
       let clean = raw.trim();
@@ -1451,7 +1488,23 @@
 
   // --- Initial Startup & Auto-Bond Execution ---
   window.addEventListener('DOMContentLoaded', async () => {
-    updateViewMode(isMobilePlatform ? 'mobile' : 'laptop');
+    // 1. Determine Initial Interface Role based on Route, Query Parameter, or Screen Size
+    const pathname = window.location.pathname.toLowerCase();
+    const roleParam = urlParams.get('role');
+    const savedRole = localStorage.getItem('directlink_assigned_role');
+
+    let initialRole = 'laptop';
+    if (pathname.includes('/phone') || pathname.includes('/mobile') || roleParam === 'phone') {
+      initialRole = 'phone';
+    } else if (pathname.includes('/laptop') || roleParam === 'laptop') {
+      initialRole = 'laptop';
+    } else if (isMobilePlatform || window.innerWidth <= 768) {
+      initialRole = 'phone';
+    } else if (savedRole) {
+      initialRole = savedRole;
+    }
+
+    switchRoleAndView(initialRole, false);
 
     // Restore saved settings
     const savedGain = localStorage.getItem('directlink_gain');

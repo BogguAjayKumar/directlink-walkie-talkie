@@ -37,9 +37,14 @@
       <span id="linkBadge" class="badge badge-link" title="Transport Mode">
         WI-FI LAN
       </span>
-      <button id="btnToggleView" class="btn-view-switch" title="Switch between Base Station HUD and Handheld Radio UI">
-        📱 Handheld UI
-      </button>
+      <div class="interface-mode-toggle">
+        <button id="btnSwitchLaptop" class="btn-interface-tab active" title="Switch to Laptop Base Station Console">
+          <span>💻</span> LAPTOP BASE
+        </button>
+        <button id="btnSwitchPhone" class="btn-interface-tab" title="Switch to Phone Walkie-Talkie Transceiver">
+          <span>📱</span> PHONE RADIO
+        </button>
+      </div>
     </div>
   </header>
 
@@ -89,6 +94,20 @@
   <!-- 🖥️ INTERFACE A: LAPTOP COMMAND BASE STATION CONSOLE          -->
   <!-- ============================================================== -->
   <section id="laptopConsole" class="view-container">
+    <!-- Master Laptop Identity Banner -->
+    <div class="device-identity-banner laptop-identity">
+      <div class="identity-left">
+        <span class="device-identity-icon">💻</span>
+        <div>
+          <div class="identity-title">COMMAND BASE STATION // LAPTOP CONSOLE</div>
+          <div class="identity-subtitle">DIRECTLINK STATIONARY HUD • DUAL OSCILLOSCOPE • SPACEBAR TRANSMITTER</div>
+        </div>
+      </div>
+      <div class="identity-right">
+        <span class="identity-tag laptop">STATION MASTER</span>
+      </div>
+    </div>
+
     <div class="console-grid">
 
       <!-- Left Column: Master Display & Transmission Deck -->
@@ -310,6 +329,20 @@
   <!-- 📱 INTERFACE B: MOBILE HANDHELD TRANSCEIVER CHASSIS           -->
   <!-- ============================================================== -->
   <section id="mobileTransceiver" class="view-container">
+    <!-- Master Mobile Field Radio Identity Banner -->
+    <div class="device-identity-banner phone-identity">
+      <div class="identity-left">
+        <span class="device-identity-icon">📱</span>
+        <div>
+          <div class="identity-title">FIELD WALKIE-TALKIE // HANDHELD RADIO</div>
+          <div class="identity-subtitle">PORTABLE TRANSCEIVER CHASSIS • LCD DISPLAY • TACTILE PTT BUTTON</div>
+        </div>
+      </div>
+      <div class="identity-right">
+        <span class="identity-tag phone">FIELD UNIT</span>
+      </div>
+    </div>
+
     <div class="radio-chassis">
       
       <!-- Top Antenna & Rotary Knobs Graphic -->
