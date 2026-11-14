@@ -15,6 +15,17 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# Android Studio / Gradle artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/.idea/
+android/*.iml
+*.apk
+*.aab
+
 # Operating system files
 .DS_Store
 Thumbs.db

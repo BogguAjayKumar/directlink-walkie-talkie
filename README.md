@@ -155,6 +155,40 @@ DirectLink is built as a **Progressive Web App (PWA)**. You do not need to compi
 
 ---
 
+## 🤖 Native Android App (Capacitor & Android Studio)
+
+DirectLink is also packaged as a **native Android project** powered by **Capacitor**. You can open it in Android Studio to build and export a standalone `.apk` or `.aab`.
+
+### 1. Open in Android Studio
+Launch Android Studio and open the `android/` directory:
+```bash
+npx cap open android
+```
+*(Or launch Android Studio directly and select `Open` -> select the `L2PC/android` folder).*
+
+### 2. Build APK in Android Studio
+1. Wait for Gradle sync to complete.
+2. In the top menu, go to **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+3. Once completed, Android Studio will display a notification: *"APK(s) generated successfully"*.
+4. Click **locate** to reveal the output `app-debug.apk`.
+
+### 3. Build APK via Command Line
+If you prefer building directly from the terminal without opening Android Studio:
+```bash
+# Sync any web assets:
+npx cap sync android
+
+# Build debug APK using the Gradle wrapper:
+cd android
+./gradlew assembleDebug
+```
+The generated APK will be output at:
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
+Transfer this `.apk` to your phone and tap to install! (Ensure *Install unknown apps* permission is enabled).
+
+---
+
 ## 🎙 How to Operate
 
 | Action | Laptop / Desktop | Smartphone (PWA) |

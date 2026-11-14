@@ -24,6 +24,9 @@
   const tunnelText = document.getElementById('tunnelText');
 
   const pairingModal = document.getElementById('pairingModal');
+  const groupServer = document.getElementById('groupServer');
+  const inputServer = document.getElementById('inputServer');
+  const btnPasteLink = document.getElementById('btnPasteLink');
   const inputRoom = document.getElementById('inputRoom');
   const inputPin = document.getElementById('inputPin');
   const selectNetwork = document.getElementById('selectNetwork');
@@ -36,6 +39,7 @@
 
   // --- State Variables ---
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isCapacitor = !!(window.Capacitor && (window.Capacitor.isNativePlatform ? window.Capacitor.isNativePlatform() : true));
   let isLaptop = !isMobile;
   let currentRoomId = '';
   let currentPin = '';
@@ -107,17 +111,69 @@
     keyboardHint.style.display = 'none';
   }
 
-  // Parse URL hash if scanning a QR code: #room=NAME&pin=123456
+  // Resolve server address & protocol for WebSocket and API calls
+  function resolveServerEndpoints() {
+    let raw = (inputServer && inputServer.value.trim()) || localStorage.getItem('directlink_server_url') || '';
+    let protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    let host = window.location.host;
+
+    if (raw) {
+      let clean = raw.trim();
+      if (clean.startsWith('https://') || clean.startsWith('wss://')) {
+        protocol = 'https:';
+        clean = clean.replace(/^(https:\/\/|wss:\/\/)/, '');
+      } else if (clean.startsWith('http://') || clean.startsWith('ws://')) {
+        protocol = 'http:';
+        clean = clean.replace(/^(http:\/\/|ws:\/\/)/, '');
+      }
+      clean = clean.replace(/\/+$/, '');
+      clean = clean.split('/')[0];
+      if (clean) host = clean;
+    }
+
+    const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+    const httpOrigin = `${protocol}//${host}`;
+    const wsUrl = `${wsProtocol}//${host}`;
+    return { httpOrigin, wsUrl, host };
+  }
+
+  // Parse invite links or QR URLs: #room=NAME&pin=123456&server=https://...
+  function parseInviteUrl(raw) {
+    if (!raw) return null;
+    try {
+      let text = raw.trim();
+      let searchParams = null;
+      let serverBase = '';
+
+      if (text.includes('#')) {
+        const parts = text.split('#');
+        serverBase = parts[0];
+        searchParams = new URLSearchParams(parts[1]);
+      } else if (text.includes('?')) {
+        const parts = text.split('?');
+        serverBase = parts[0];
+        searchParams = new URLSearchParams(parts[1]);
+      } else {
+        searchParams = new URLSearchParams(text);
+      }
+
+      const room = searchParams.get('room');
+      const pin = searchParams.get('pin');
+      const server = searchParams.get('server') || (serverBase && serverBase.startsWith('http') ? serverBase : null);
+
+      if (room || pin || server) {
+        return { room, pin, server };
+      }
+    } catch (e) {
+      console.warn('Failed to parse URL:', e);
+    }
+    return null;
+  }
+
   function parseUrlHash() {
     const hash = window.location.hash.substring(1);
     if (!hash) return null;
-    const params = new URLSearchParams(hash);
-    const room = params.get('room');
-    const pin = params.get('pin');
-    if (room && pin) {
-      return { room, pin };
-    }
-    return null;
+    return parseInviteUrl(window.location.href);
   }
 
   // Generate random room & 6-digit PIN if not already set
@@ -133,7 +189,8 @@
   // --- Network Info & QR Code ---
   async function fetchServerInfo() {
     try {
-      const res = await fetch('/api/info');
+      const { httpOrigin } = resolveServerEndpoints();
+      const res = await fetch(`${httpOrigin}/api/info`);
       if (res.ok) {
         serverInfo = await res.json();
         updateNetworkOptions();
@@ -188,13 +245,14 @@
     const base = selectNetwork.value || window.location.origin;
     const room = inputRoom.value.trim();
     const pin = inputPin.value.trim();
-    return `${base}/#room=${encodeURIComponent(room)}&pin=${encodeURIComponent(pin)}`;
+    return `${base}/#room=${encodeURIComponent(room)}&pin=${encodeURIComponent(pin)}&server=${encodeURIComponent(base)}`;
   }
 
   async function updateQrCode() {
     const url = getShareableUrl();
     try {
-      const qrApiUrl = `/api/qr?text=${encodeURIComponent(url)}`;
+      const { httpOrigin } = resolveServerEndpoints();
+      const qrApiUrl = `${httpOrigin}/api/qr?text=${encodeURIComponent(url)}`;
       qrImage.src = qrApiUrl;
     } catch (err) {
       console.warn('QR update error:', err);
@@ -204,6 +262,32 @@
   selectNetwork.addEventListener('change', updateQrCode);
   inputRoom.addEventListener('input', updateQrCode);
   inputPin.addEventListener('input', updateQrCode);
+  if (inputServer) inputServer.addEventListener('input', updateQrCode);
+
+  if (btnPasteLink) {
+    btnPasteLink.addEventListener('click', async () => {
+      let text = '';
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (err) {
+        text = prompt('Paste your DirectLink invite link or QR URL:');
+      }
+      if (text) {
+        const parsed = parseInviteUrl(text);
+        if (parsed) {
+          if (parsed.server && inputServer) {
+            inputServer.value = parsed.server;
+            localStorage.setItem('directlink_server_url', parsed.server);
+          }
+          if (parsed.room) inputRoom.value = parsed.room;
+          if (parsed.pin) inputPin.value = parsed.pin;
+          alert('Invite parameters applied! Click "Connect Intercom" to join.');
+        } else {
+          alert('Could not parse link. Please check the URL.');
+        }
+      }
+    });
+  }
 
   btnCopyLink.addEventListener('click', async () => {
     const url = getShareableUrl();
@@ -650,8 +734,8 @@
     await initMicrophone();
     requestWakeLock();
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const { wsUrl } = resolveServerEndpoints();
+    console.log('Connecting to signaling server at:', wsUrl);
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -843,6 +927,9 @@
   // --- Connect Form Action ---
   btnConnect.addEventListener('click', () => {
     unlockAudio();
+    if (inputServer && inputServer.value.trim()) {
+      localStorage.setItem('directlink_server_url', inputServer.value.trim());
+    }
     const room = inputRoom.value.trim().toLowerCase();
     const pin = inputPin.value.trim();
     if (!room || !pin) {
@@ -858,13 +945,24 @@
 
   // --- Initial Startup & Auto-Join check ---
   window.addEventListener('DOMContentLoaded', async () => {
+    const savedServer = localStorage.getItem('directlink_server_url');
+    if (savedServer && inputServer) {
+      inputServer.value = savedServer;
+    }
+
     const credentials = parseUrlHash();
     if (credentials) {
+      if (credentials.server && inputServer) {
+        inputServer.value = credentials.server;
+        localStorage.setItem('directlink_server_url', credentials.server);
+      }
       // Pre-fill credentials from QR Code scan
-      inputRoom.value = credentials.room;
-      inputPin.value = credentials.pin;
+      if (credentials.room) inputRoom.value = credentials.room;
+      if (credentials.pin) inputPin.value = credentials.pin;
       await fetchServerInfo();
-      btnConnect.textContent = `Connect to ${credentials.room.toUpperCase()}`;
+      if (credentials.room) {
+        btnConnect.textContent = `Connect to ${credentials.room.toUpperCase()}`;
+      }
       pairingModal.classList.remove('hidden');
     } else {
       // Default setup

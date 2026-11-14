@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DirectLink</string>
+    <string name="title_activity_main">DirectLink</string>
+    <string name="package_name">com.directlink.walkietalkie</string>
+    <string name="custom_url_scheme">com.directlink.walkietalkie</string>
+</resources>

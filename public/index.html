@@ -123,6 +123,17 @@
         <span>Intercom Pairing Setup</span>
       </div>
 
+      <!-- Server Endpoint Selector (Active on Mobile App / Capacitor & Remote) -->
+      <div class="input-group" id="groupServer">
+        <label class="input-label" for="inputServer">Signaling Server URL / IP</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="inputServer" class="input-field" placeholder="e.g. 192.168.0.142:8443 or https://..." spellcheck="false" autocomplete="off" style="flex: 1;">
+          <button id="btnPasteLink" type="button" class="btn-tactical" style="padding: 0 12px; font-size: 11px; white-space: nowrap;" title="Paste invite link or QR code URL">
+            Paste Link
+          </button>
+        </div>
+      </div>
+
       <div class="input-group">
         <label class="input-label" for="inputRoom">Tactical Channel (Room ID)</label>
         <input type="text" id="inputRoom" class="input-field" placeholder="alpha-channel" spellcheck="false" autocomplete="off">

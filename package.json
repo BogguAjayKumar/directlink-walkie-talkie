@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-signaling.js"
+    "test": "node test-signaling.js",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android"
   },
   "repository": {
     "type": "git",
@@ -26,10 +28,15 @@
   "author": "Boggu Ajay Kumar",
   "license": "MIT",
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
     "express": "^5.3.0",
     "localtunnel": "^2.0.2",
     "qrcode": "^1.5.4",
     "selfsigned": "^5.5.0",
     "ws": "^8.22.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2"
   }
 }

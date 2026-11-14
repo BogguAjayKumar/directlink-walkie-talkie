@@ -1,0 +1,12 @@
+{
+  "appId": "com.directlink.walkietalkie",
+  "appName": "DirectLink",
+  "webDir": "public",
+  "server": {
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
