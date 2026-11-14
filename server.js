@@ -131,6 +131,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Detailed Connection & Request Logger for Easy Debugging
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api/qr')) {
+    const ip = req.socket.remoteAddress ? req.socket.remoteAddress.replace(/^.*:/, '') : 'local';
+    console.log(`[HTTP ${req.method}] ${req.url} (from ${ip})`);
+  }
+  next();
+});
+
 // API: Server and network status info
 app.get('/api/info', (req, res) => {
   res.json({
@@ -268,17 +277,28 @@ async function startServer() {
   const certs = await getOrGenerateCerts();
   const httpsServer = https.createServer(certs, app);
 
-  // Optional HTTP redirect / landing
-  const httpServer = http.createServer((req, res) => {
-    const host = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
-    res.writeHead(301, { Location: `https://${host}:${HTTPS_PORT}${req.url}` });
-    res.end();
+  // HTTP Server also serves the app & WebSockets directly on port 8080
+  // (Crucial for Android APK and devices to connect without self-signed SSL certificate blocks)
+  const httpServer = http.createServer(app);
+
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpsServer.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
   });
 
-  const wss = new WebSocketServer({ server: httpsServer });
+  httpServer.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  });
 
   wss.on('connection', (ws, req) => {
-    const clientIp = req.socket.remoteAddress;
+    const rawIp = req.socket.remoteAddress || '';
+    const clientIp = rawIp.replace(/^.*:/, '') || 'local';
+    console.log(`[WS CONNECT] Device connected from IP: ${clientIp}`);
     let currentRoomId = null;
 
     ws.isAlive = true;
@@ -299,6 +319,7 @@ async function startServer() {
       switch (data.type) {
         case 'join': {
           const { roomId, pin, role, deviceName } = data;
+          console.log(`[JOIN ATTEMPT] Device (${role || 'device'}) joining "${roomId}" from ${clientIp}`);
           if (!roomId || !pin) {
             ws.send(JSON.stringify({ type: 'error', message: 'Room ID and PIN are required' }));
             return;
@@ -391,6 +412,11 @@ async function startServer() {
             peerCount: room.peers.size,
             isInitiator: room.peers.size === 1
           }));
+
+          console.log(`[JOIN SUCCESS] ${peerInfo.name} (${role}) joined "${roomId}". Total devices in channel: ${room.peers.size}/2`);
+          if (room.peers.size === 2) {
+            console.log(`\n>>> SUCCESS: BOTH DEVICES (LAPTOP & PHONE) ARE LINKED & READY! <<<\n`);
+          }
 
           // Notify existing peer
           for (const [otherWs, otherPeer] of room.peers.entries()) {
@@ -511,16 +537,18 @@ async function startServer() {
   // Start listening
   httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log('\n===============================================================');
-    console.log('   DIRECTLINK WALKIE-TALKIE SERVER INITIALIZED & READY');
+    console.log('   DIRECTLINK TACTICAL INTERCOM SERVER IS ONLINE & READY');
     console.log('===============================================================');
-    console.log(`Local Access (Laptop):`);
-    console.log(`   https://localhost:${HTTPS_PORT}`);
-    console.log(`\nLocal Network (Phone on same Wi-Fi):`);
+    console.log(`💻 LAPTOP ACCESS:`);
+    console.log(`   👉 https://localhost:${HTTPS_PORT}`);
+    console.log(`\n📱 PHONE ACCESS (Same Wi-Fi):`);
     const localIps = getLocalIps();
     localIps.forEach(({ name, ip }) => {
-      console.log(`   https://${ip}:${HTTPS_PORT}  [${name}]`);
+      console.log(`   👉 Instant Wi-Fi / APK: http://${ip}:${HTTP_PORT} [${name}]`);
+      console.log(`   👉 Local Wi-Fi (HTTPS): https://${ip}:${HTTPS_PORT} [${name}]`);
     });
-    console.log(`\nOptional HTTP redirect port: ${HTTP_PORT}`);
+    console.log(`\n🌍 MOBILE DATA WAN (4G/5G / Global Internet):`);
+    console.log(`   Click "Mobile Data WAN" on your laptop screen to generate public link.`);
     console.log('===============================================================\n');
   });
 

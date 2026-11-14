@@ -240,6 +240,10 @@
       } else if (clean.startsWith('http://') || clean.startsWith('ws://')) {
         protocol = 'http:';
         clean = clean.replace(/^(http:\/\/|ws:\/\/)/, '');
+      } else if (clean.includes(':8080') || clean.includes(':80')) {
+        protocol = 'http:';
+      } else if (clean.includes(':8443') || clean.includes('.loca.lt')) {
+        protocol = 'https:';
       }
       clean = clean.replace(/\/+$/, '');
       clean = clean.split('/')[0];
@@ -351,26 +355,33 @@
 
   function updateNetworkOptions() {
     selectNetwork.innerHTML = '';
+
+    // Tunnel option if active (always top recommended!)
+    if (serverInfo.tunnelUrl) {
+      const opt = document.createElement('option');
+      opt.value = serverInfo.tunnelUrl;
+      opt.textContent = `★ Mobile Data / WAN Tunnel (${serverInfo.tunnelUrl})`;
+      selectNetwork.appendChild(opt);
+      selectNetwork.value = serverInfo.tunnelUrl;
+    }
+
     if (serverInfo.localIps && serverInfo.localIps.length > 0) {
       serverInfo.localIps.forEach(({ name, ip }) => {
-        const opt = document.createElement('option');
-        opt.value = `https://${ip}:${serverInfo.httpsPort}`;
-        opt.textContent = `Wi-Fi (${ip}) [${name}]`;
-        selectNetwork.appendChild(opt);
+        const optHttp = document.createElement('option');
+        optHttp.value = `http://${ip}:${serverInfo.httpPort}`;
+        optHttp.textContent = `Wi-Fi HTTP (${ip}:${serverInfo.httpPort}) [APK / No SSL warning]`;
+        selectNetwork.appendChild(optHttp);
+
+        const optHttps = document.createElement('option');
+        optHttps.value = `https://${ip}:${serverInfo.httpsPort}`;
+        optHttps.textContent = `Wi-Fi HTTPS (${ip}:${serverInfo.httpsPort}) [Self-Signed]`;
+        selectNetwork.appendChild(optHttps);
       });
     } else {
       const opt = document.createElement('option');
       opt.value = window.location.origin;
       opt.textContent = `Current Origin (${window.location.host})`;
       selectNetwork.appendChild(opt);
-    }
-
-    if (serverInfo.tunnelUrl) {
-      const opt = document.createElement('option');
-      opt.value = serverInfo.tunnelUrl;
-      opt.textContent = `Mobile Data Tunnel (${serverInfo.tunnelUrl})`;
-      selectNetwork.appendChild(opt);
-      selectNetwork.value = serverInfo.tunnelUrl;
     }
 
     updateQrCode();
