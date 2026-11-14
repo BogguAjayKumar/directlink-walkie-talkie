@@ -129,16 +129,28 @@ rooms.set(bondedPair.roomId, {
 
 const app = express();
 app.use(express.json());
+
+// Dedicated Routing: Separate Laptop and Phone Apps Cleanly
+app.get(['/phone', '/phone.html', '/mobile'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'phone.html'));
+});
+
+app.get(['/laptop', '/laptop.html', '/desktop', '/pc'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'laptop.html'));
+});
+
+// Root Route: Smart Device Detection
+app.get('/', (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+  if (isMobile) {
+    res.sendFile(path.join(__dirname, 'public', 'phone.html'));
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'laptop.html'));
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Explicit Friendly Routes for Phone & Laptop
-app.get(['/phone', '/mobile'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get(['/laptop', '/desktop', '/pc'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 // Detailed Connection & Request Logger for Easy Debugging
 app.use((req, res, next) => {

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#080b11">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>DirectLink // Mobile Walkie-Talkie</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/phone.css">
+</head>
+<body class="state-disconnected">
+
+  <!-- Mobile Top Header -->
+  <header class="mobile-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#080b11" stroke-width="2.5">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+      </div>
+      <div class="brand-title">DirectLink <span class="brand-sub">PHONE</span></div>
+    </div>
+
+    <!-- Live Telemetry Badges -->
+    <div class="header-badges">
+      <span id="bondBadge" class="badge badge-bond" title="Exclusive Bond">
+        <span class="bond-dot"></span>
+        <span id="bondStatusText">BONDED (PC)</span>
+      </span>
+      <span id="pingBadge" class="badge badge-ping">
+        ⚡ <span id="pingValue">-- ms</span>
+      </span>
+      <a href="/laptop" class="btn-switch-link" title="Open Laptop HUD">💻 LAPTOP HUD</a>
+    </div>
+  </header>
+
+  <!-- 3-Way Tactical Connection Mode Selector -->
+  <div class="mode-selector-strip">
+    <div class="mode-strip-inner">
+      <button id="btnModeWifi" class="btn-mode-tab active" data-mode="wifi" title="Direct Local Wi-Fi">
+        <span class="mode-icon">📶</span>
+        <span class="mode-label">1. Wi-Fi</span>
+      </button>
+      <button id="btnModeWan" class="btn-mode-tab" data-mode="wan" title="Mobile Data WAN Tunnel">
+        <span class="mode-icon">🌐</span>
+        <span class="mode-label">2. Mobile Data</span>
+      </button>
+      <button id="btnModeFreq" class="btn-mode-tab" data-mode="freq" title="Dial Radio Frequencies">
+        <span class="mode-icon">📻</span>
+        <span class="mode-label">3. Radio Dial</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Virtual Radio Frequency Tuner Bar (Active in Mode 3) -->
+  <div id="freqTunerBar" class="freq-tuner-bar hidden">
+    <div class="freq-screen">
+      <span class="freq-label">VIRTUAL RF:</span>
+      <span id="currentFreqValue" class="freq-mhz">462.5625 MHz</span>
+      <span class="freq-channel-pill" id="currentFreqChannel">CH 01</span>
+    </div>
+    <div class="freq-selector-wrap">
+      <select id="selectRadioFreq" class="tactical-select">
+        <option value="462.5625|CH 01">CH 01 — 462.5625 MHz (Primary FRS)</option>
+        <option value="462.5875|CH 02">CH 02 — 462.5875 MHz (Tactical Secondary)</option>
+        <option value="462.6125|CH 03">CH 03 — 462.6125 MHz (Command Direct)</option>
+        <option value="462.6375|CH 04">CH 04 — 462.6375 MHz (Patrol Line)</option>
+        <option value="467.5625|CH 08">CH 08 — 467.5625 MHz (High Power Intercom)</option>
+        <option value="144.3900|VHF 01">VHF 01 — 144.3900 MHz (Marine Emergency)</option>
+        <option value="custom">Dial Custom MHz Frequency...</option>
+      </select>
+      <div id="customFreqBox" class="custom-freq-box hidden">
+        <input type="text" id="inputCustomFreq" class="input-field" placeholder="e.g. 433.92" maxlength="10">
+        <button id="btnApplyFreq" class="btn-tactical">Tune</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prominent Master Phone Identity Banner -->
+  <div class="device-identity-banner phone-identity">
+    <div class="identity-left">
+      <span class="device-identity-icon">📱</span>
+      <div>
+        <div class="identity-title">FIELD WALKIE-TALKIE TRANSCEIVER</div>
+        <div class="identity-subtitle">PORTABLE PHONE AUDIO UNIT • BONDED TO LAPTOP</div>
+      </div>
+    </div>
+    <div class="identity-right">
+      <span class="identity-tag phone">PHONE ACTIVE</span>
+    </div>
+  </div>
+
+  <!-- Prominent Laptop Connection Status Banner -->
+  <div id="peerStatusBannerMobile" class="peer-status-strip offline">
+    <div class="peer-status-main">
+      <span class="peer-status-dot"></span>
+      <span id="peerStatusDeviceNameMobile" class="peer-name">LAPTOP DISCONNECTED</span>
+    </div>
+    <span id="peerStatusHintMobile" class="peer-hint">Waiting for Laptop to link...</span>
+  </div>
+
+  <!-- One-Touch Microphone Arming Banner (Appears if browser needs user tap for mic) -->
+  <div id="micArmBanner" class="mic-arm-banner">
+    <button id="btnArmMic" class="btn-arm-mic">
+      <span class="mic-pulse-icon">🎙️</span>
+      <span>TAP HERE TO ARM PHONE MICROPHONE</span>
+    </button>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 📱 RUGGED HANDHELD WALKIE-TALKIE RADIO CHASSIS                 -->
+  <!-- ============================================================== -->
+  <main class="radio-container">
+    <div class="radio-chassis">
+      
+      <!-- Top Antenna & Rotary Knobs Graphic -->
+      <div class="chassis-antenna-bar">
+        <div class="antenna-stub"></div>
+        <div class="knob-group">
+          <div class="chassis-knob" title="Volume Knob"></div>
+          <div class="chassis-knob" title="Channel Selector"></div>
+        </div>
+      </div>
+
+      <!-- Tactical Backlit LCD Display Screen -->
+      <div class="radio-lcd-screen">
+        <div class="lcd-header">
+          <div class="lcd-sig">
+            <span class="bar bar-1"></span>
+            <span class="bar bar-2"></span>
+            <span class="bar bar-3"></span>
+            <span class="bar bar-4"></span>
+            <span class="sig-tag">RF 5.8G</span>
+          </div>
+          <div class="lcd-channel-tag" id="displayRoomMobile">DIRECTLINK-MASTER</div>
+          <div class="lcd-batt">98% ⚡</div>
+        </div>
+
+        <!-- LCD Live Miniature Waveform Canvas -->
+        <div class="lcd-scope-container">
+          <canvas id="oscilloscopeMobile"></canvas>
+        </div>
+
+        <div class="lcd-footer">
+          <span id="statusLabelMobile" class="lcd-status-text">OFFLINE</span>
+          <span id="pingMobile" class="lcd-meta">-- ms</span>
+        </div>
+      </div>
+
+      <!-- Textured Speaker Grille -->
+      <div class="speaker-grille">
+        <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+        <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+      </div>
+
+      <!-- Massive Tactical Push-To-Talk Button -->
+      <div class="mobile-ptt-container">
+        <div class="mobile-ptt-halo"></div>
+        <button id="pttBtnMobile" class="mobile-ptt-button" disabled aria-label="Push To Talk">
+          <div class="mobile-ptt-core">
+            <svg class="mobile-ptt-mic-icon" viewBox="0 0 24 24">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+            <span id="pttTextMobile" class="mobile-ptt-text">HOLD TO TALK</span>
+            <span id="pttSubtextMobile" class="mobile-ptt-sub">BONDED TO LAPTOP</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Mobile Tactical Action Dock -->
+      <div class="mobile-controls-dock">
+        <button id="btnMobileMode" class="btn-dock-action" title="Toggle PTT Mode">
+          <span class="dock-icon">🔄</span>
+          <span id="modeTextMobile" class="dock-label">Hold</span>
+        </button>
+        <button id="btnMobileSettings" class="btn-dock-action" title="Audio Settings">
+          <span class="dock-icon">🎛️</span>
+          <span class="dock-label">DSP Audio</span>
+        </button>
+        <button id="btnMobileDiag" class="btn-dock-action" title="Diagnostics">
+          <span class="dock-icon">📊</span>
+          <span class="dock-label">Diag</span>
+        </button>
+        <button id="btnMobilePair" class="btn-dock-action" title="Re-Link">
+          <span class="dock-icon">🔗</span>
+          <span class="dock-label">Pair</span>
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Mobile Settings Drawer -->
+  <div id="drawerSettings" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>Audio Settings</span>
+      </div>
+      <div class="control-row">
+        <div class="control-label-group">
+          <span class="control-label">MIC GAIN BOOST</span>
+          <span id="mobileGainValue" class="control-readout">100%</span>
+        </div>
+        <input type="range" id="sliderGainMobile" class="tactical-slider" min="20" max="250" value="100">
+      </div>
+      <div class="control-row">
+        <span class="control-label">ROGER BEEP TONE</span>
+        <select id="selectRogerMobile" class="tactical-select">
+          <option value="motorola">Motorola Tactical Chirp</option>
+          <option value="nasa">NASA Apollo Quindar (2475Hz)</option>
+          <option value="chirp">Radar Sub-Audible Chirp</option>
+          <option value="subtone">100Hz Sub-Audible Tone</option>
+          <option value="squelch">Analog Squelch Burst</option>
+          <option value="off">Mute Roger Beeps</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button id="btnCloseSettings" class="btn-primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Diagnostics Drawer -->
+  <div id="drawerDiagnostics" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>Link Diagnostics</span>
+      </div>
+      <div class="telemetry-grid">
+        <div class="telemetry-item">
+          <span class="telemetry-label">PEER LATENCY</span>
+          <span id="mobileValLatency" class="telemetry-value">-- ms</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">WEBRTC STATE</span>
+          <span id="mobileValIce" class="telemetry-value">DISCONNECTED</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">ROLE</span>
+          <span class="telemetry-value highlight">PHONE TRANSCEIVER</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">BOND</span>
+          <span class="telemetry-value highlight">MASTER BONDED</span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnCloseDiag" class="btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pairing Modal -->
+  <div id="pairingModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>Intercom Pairing</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputServer">Laptop Server IP / URL</label>
+        <input type="text" id="inputServer" class="input-field" placeholder="192.168.0.142:8080">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputRoom">Tactical Channel</label>
+        <input type="text" id="inputRoom" class="input-field" value="directlink-master">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputPin">Security PIN</label>
+        <input type="text" id="inputPin" class="input-field" value="849201" maxlength="6">
+      </div>
+      <div class="modal-actions">
+        <button id="btnCancelModal" class="btn-tactical">Close</button>
+        <button id="btnConnect" class="btn-primary">Connect Intercom</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Remote Audio Playout -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <!-- Scripts -->
+  <script src="/sound-effects.js"></script>
+  <script src="/phone.js"></script>
+</body>
+</html>

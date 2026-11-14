@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080b11">
+  <title>DirectLink // Laptop Command Station</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/laptop.css">
+</head>
+<body class="state-disconnected">
+
+  <!-- Master Top Navigation Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#080b11" stroke-width="2.5">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+      </div>
+      <div class="brand-title">DirectLink <span class="brand-sub">BASE STATION</span></div>
+    </div>
+
+    <!-- Live Telemetry Badges -->
+    <div class="header-badges">
+      <span id="bondBadge" class="badge badge-bond" title="Exclusive Device Bond">
+        <span class="bond-dot"></span>
+        <span id="bondStatusText">BONDED (PC ↔ PHONE)</span>
+      </span>
+      <span id="pingBadge" class="badge badge-ping" title="Round-Trip Network Latency">
+        ⚡ <span id="pingValue">-- ms</span>
+      </span>
+      <span id="linkBadge" class="badge badge-link" title="Transport Mode">
+        WI-FI LAN
+      </span>
+      <a href="/phone" class="btn-switch-link" title="Open Phone Walkie-Talkie">📱 PHONE RADIO</a>
+    </div>
+  </header>
+
+  <!-- 3-Way Tactical Connection Mode Selector -->
+  <div class="mode-selector-strip">
+    <div class="mode-strip-inner">
+      <button id="btnModeWifi" class="btn-mode-tab active" data-mode="wifi" title="Direct Local Wi-Fi Network">
+        <span class="mode-icon">📶</span>
+        <span class="mode-label">1. Local Wi-Fi</span>
+      </button>
+      <button id="btnModeWan" class="btn-mode-tab" data-mode="wan" title="Cellular Mobile Data + Wi-Fi Global Relay">
+        <span class="mode-icon">🌐</span>
+        <span class="mode-label">2. Mobile Data + Wi-Fi</span>
+      </button>
+      <button id="btnModeFreq" class="btn-mode-tab" data-mode="freq" title="Dial Walkie-Talkie Frequencies (FM / UHF)">
+        <span class="mode-icon">📻</span>
+        <span class="mode-label">3. Radio Freq Dial</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tactical Radio Frequency Dial (Active in Mode 3) -->
+  <div id="freqTunerBar" class="freq-tuner-bar hidden">
+    <div class="freq-screen">
+      <span class="freq-label">VIRTUAL RF FREQUENCY:</span>
+      <span id="currentFreqValue" class="freq-mhz">462.5625 MHz</span>
+      <span class="freq-channel-pill" id="currentFreqChannel">CH 01</span>
+    </div>
+    <div class="freq-selector-wrap">
+      <select id="selectRadioFreq" class="tactical-select">
+        <option value="462.5625|CH 01">CH 01 — 462.5625 MHz (Primary FRS)</option>
+        <option value="462.5875|CH 02">CH 02 — 462.5875 MHz (Tactical Secondary)</option>
+        <option value="462.6125|CH 03">CH 03 — 462.6125 MHz (Command Direct)</option>
+        <option value="462.6375|CH 04">CH 04 — 462.6375 MHz (Patrol Line)</option>
+        <option value="467.5625|CH 08">CH 08 — 467.5625 MHz (High Power Intercom)</option>
+        <option value="144.3900|VHF 01">VHF 01 — 144.3900 MHz (Marine Emergency)</option>
+        <option value="custom">Dial Custom MHz Frequency...</option>
+      </select>
+      <div id="customFreqBox" class="custom-freq-box hidden">
+        <input type="text" id="inputCustomFreq" class="input-field" placeholder="e.g. 433.92" maxlength="10">
+        <button id="btnApplyFreq" class="btn-tactical">Tune</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Master Laptop Identity Banner -->
+  <div class="device-identity-banner laptop-identity">
+    <div class="identity-left">
+      <span class="device-identity-icon">💻</span>
+      <div>
+        <div class="identity-title">COMMAND BASE STATION // LAPTOP CONSOLE</div>
+        <div class="identity-subtitle">DIRECTLINK STATIONARY HUD • DUAL OSCILLOSCOPE • SPACEBAR TRANSMITTER</div>
+      </div>
+    </div>
+    <div class="identity-right">
+      <span class="identity-tag laptop">STATION MASTER</span>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 🖥️ LAPTOP COMMAND CONSOLE HUD                                  -->
+  <!-- ============================================================== -->
+  <main id="laptopConsole" class="console-container">
+    <div class="console-grid">
+
+      <!-- Left Column: Master Display & Transmission Deck -->
+      <div class="console-main">
+        <!-- Prominent Phone Connection Status Banner -->
+        <div id="peerStatusBannerLaptop" class="peer-status-strip offline">
+          <div class="peer-status-main">
+            <span class="peer-status-dot"></span>
+            <span id="peerStatusDeviceNameLaptop" class="peer-name">PHONE DISCONNECTED</span>
+          </div>
+          <span id="peerStatusHintLaptop" class="peer-hint">Waiting for Phone to link...</span>
+        </div>
+
+        <!-- Top Status Bar -->
+        <div class="tactical-hud-card">
+          <div class="hud-header">
+            <div class="hud-channel">
+              <span class="hud-label">SECURE FREQ:</span>
+              <span id="displayRoomLaptop" class="channel-callsign">DIRECTLINK-MASTER</span>
+            </div>
+            <div class="hud-status-cluster">
+              <div class="peer-pill" id="peerPillLaptop">
+                <span class="pulse-indicator"></span>
+                <span id="peerLabelLaptop">PHONE STANDBY</span>
+              </div>
+              <div class="state-pill">
+                <span class="status-dot"></span>
+                <span id="statusLabelLaptop">OFFLINE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dual Visualizer: Waveform Oscilloscope & VU Meters -->
+          <div class="visualizer-dual-box">
+            <canvas id="oscilloscopeLaptop"></canvas>
+            <div class="visualizer-overlay">
+              <span class="scope-mode-tag">LIVE OSCILLOSCOPE // 48 kHz</span>
+              <div class="vu-meters">
+                <div class="vu-meter-group">
+                  <span class="vu-tag">MIC</span>
+                  <div class="vu-bar-bg"><div id="vuMic" class="vu-bar-fill"></div></div>
+                </div>
+                <div class="vu-meter-group">
+                  <span class="vu-tag">RX</span>
+                  <div class="vu-bar-bg"><div id="vuPeer" class="vu-bar-fill rx"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="statusBannerLaptop" class="tactical-banner">TAP CONNECT OR SCAN WITH PHONE</div>
+        </div>
+
+        <!-- Heavy-Duty PTT Spacebar Transmission Deck -->
+        <div class="ptt-deck">
+          <div class="ptt-halo"></div>
+          <button id="pttBtnLaptop" class="ptt-tactical-button" disabled aria-label="Push To Talk">
+            <div class="ptt-inner-ring">
+              <svg class="ptt-icon" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+              <span id="pttTextLaptop" class="ptt-title">HOLD TO TALK</span>
+              <span id="pttSubtextLaptop" class="ptt-subtitle">SPACEBAR STANDBY</span>
+            </div>
+          </button>
+
+          <div class="keyboard-instruction">
+            <span>PRESS &amp; HOLD</span>
+            <kbd class="key-cap">SPACEBAR</kbd>
+            <span>TO BROADCAST VOICE</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Control Tower, DSP & Telemetry -->
+      <div class="console-sidebar">
+
+        <!-- Audio DSP Controls Card -->
+        <div class="tactical-hud-card">
+          <div class="card-title">
+            <span class="icon">🎛️</span> AUDIO DSP &amp; ACOUSTICS
+          </div>
+          
+          <div class="control-row">
+            <div class="control-label-group">
+              <span class="control-label">MIC GAIN MULTIPLIER</span>
+              <span id="gainValueDisplay" class="control-readout">100%</span>
+            </div>
+            <input type="range" id="sliderGain" class="tactical-slider" min="20" max="250" value="100">
+          </div>
+
+          <div class="control-row">
+            <div class="control-label-group">
+              <span class="control-label">ROGER BEEP TONE</span>
+            </div>
+            <select id="selectRogerBeep" class="tactical-select">
+              <option value="motorola">Motorola Tactical Chirp</option>
+              <option value="nasa">NASA Apollo Quindar (2475Hz)</option>
+              <option value="chirp">Radar Sub-Audible Chirp</option>
+              <option value="subtone">100Hz Sub-Audible Tone</option>
+              <option value="squelch">Analog Squelch Burst</option>
+              <option value="off">Mute Roger Beeps</option>
+            </select>
+          </div>
+
+          <div class="toggle-grid">
+            <label class="tactical-checkbox">
+              <input type="checkbox" id="chkEchoCancel" checked>
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-label">Echo Cancel</span>
+            </label>
+            <label class="tactical-checkbox">
+              <input type="checkbox" id="chkNoiseSupp" checked>
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-label">Noise Suppress</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Telemetry & Link Integrity -->
+        <div class="tactical-hud-card">
+          <div class="card-title">
+            <span class="icon">📡</span> SYSTEM TELEMETRY
+          </div>
+          <div class="telemetry-grid">
+            <div class="telemetry-item">
+              <span class="telemetry-label">ICE STATE</span>
+              <span id="valIceState" class="telemetry-value">STANDBY</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">RTT LATENCY</span>
+              <span id="valLatency" class="telemetry-value">-- ms</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">TRANSPORT</span>
+              <span id="valTransport" class="telemetry-value">DTLS-SRTP</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">ROLE</span>
+              <span class="telemetry-value highlight">COMMAND LAPTOP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Station Operations -->
+        <div class="tactical-hud-card">
+          <div class="card-title">
+            <span class="icon">⚙️</span> STATION CONTROLS
+          </div>
+          <div class="action-btn-group">
+            <button id="btnModeLaptop" class="btn-tactical" title="Switch between Hold to Talk and Toggle Handsfree">
+              <span>🔄</span> <span id="modeTextLaptop">Hold Mode</span>
+            </button>
+            <button id="btnTunnelLaptop" class="btn-tactical" title="Enable Mobile Data Tunnel for 4G/5G">
+              <span>🌐</span> <span id="tunnelTextLaptop">Mobile Data WAN</span>
+            </button>
+            <button id="btnPairingLaptop" class="btn-tactical primary" title="View Pairing QR Code & Link Info">
+              <span>🔗</span> <span>Pair / Link Phone</span>
+            </button>
+            <button id="btnResetBondLaptop" class="btn-tactical danger" title="Reset Master Bond">
+              <span>⚠️</span> <span>Reset Bond</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Real-time Event Log -->
+        <div class="tactical-hud-card log-card">
+          <div class="card-title">
+            <span class="icon">📋</span> EVENT AUDIT LOG
+          </div>
+          <div id="activityLog" class="activity-log"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Pairing Modal -->
+  <div id="pairingModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>Intercom Pairing Setup</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputServer">Signaling Server URL</label>
+        <input type="text" id="inputServer" class="input-field" placeholder="localhost:8080">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputRoom">Tactical Channel</label>
+        <input type="text" id="inputRoom" class="input-field" value="directlink-master">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="inputPin">Security PIN</label>
+        <input type="text" id="inputPin" class="input-field" value="849201" maxlength="6">
+      </div>
+
+      <div class="qr-preview-box">
+        <img id="qrImage" alt="Pairing QR Code" src="">
+        <span class="qr-caption">Scan with Phone Camera to link instantly</span>
+        <button id="btnCopyLink" class="btn-tactical" style="width: 100%;">
+          <span>Copy Invite Link</span>
+        </button>
+        <div style="margin-top: 8px; width: 100%;">
+          <a href="/app-debug.apk" download="DirectLink-WalkieTalkie.apk" class="btn-tactical" style="display: block; text-align: center; text-decoration: none; padding: 8px 12px; font-size: 11px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+            📲 Download Phone APK Directly
+          </a>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnCancelModal" class="btn-tactical">Close</button>
+        <button id="btnConnect" class="btn-primary">Connect Intercom</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Remote Audio Element for Incoming Peer Speech Stream -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <!-- Scripts -->
+  <script src="/sound-effects.js"></script>
+  <script src="/laptop.js"></script>
+</body>
+</html>
