@@ -1,0 +1,35 @@
+{
+  "name": "directlink-walkie-talkie",
+  "version": "1.0.0",
+  "description": "Instant, end-to-end encrypted push-to-talk (PTT) audio intercom connecting phone and laptop across Wi-Fi and Cellular Mobile Data (4G/5G).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-signaling.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BogguAjayKumar/directlink-walkie-talkie.git"
+  },
+  "keywords": [
+    "webrtc",
+    "walkie-talkie",
+    "push-to-talk",
+    "ptt",
+    "intercom",
+    "pwa",
+    "audio-streaming",
+    "e2ee",
+    "websocket",
+    "nodejs"
+  ],
+  "author": "Boggu Ajay Kumar",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.3.0",
+    "localtunnel": "^2.0.2",
+    "qrcode": "^1.5.4",
+    "selfsigned": "^5.5.0",
+    "ws": "^8.22.2"
+  }
+}
