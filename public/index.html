@@ -3,118 +3,427 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0d14">
+  <meta name="theme-color" content="#080b11">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>DirectLink // Secure Walkie-Talkie</title>
+  <title>DirectLink // Military Tactical Intercom</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/style.css">
 </head>
-<body class="state-disconnected">
+<body class="state-disconnected view-laptop">
 
-  <!-- Header -->
+  <!-- Master Top Navigation Bar -->
   <header>
     <div class="brand">
       <div class="brand-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0d14" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#080b11" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
           <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
           <line x1="12" y1="19" x2="12" y2="22"></line>
         </svg>
       </div>
-      <div class="brand-title">DirectLink</div>
+      <div class="brand-title">DirectLink <span class="brand-sub">TACTICAL</span></div>
     </div>
+
+    <!-- Live Telemetry Badges -->
     <div class="header-badges">
-      <span class="badge badge-e2ee" title="Encrypted Media Channel">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-        </svg>
-        DTLS-SRTP E2EE
+      <span id="bondBadge" class="badge badge-bond" title="Exclusive Device Bond">
+        <span class="bond-dot"></span>
+        <span id="bondStatusText">BONDED (PC ↔ PHONE)</span>
       </span>
-      <span id="deviceBadge" class="badge badge-device">Detecting...</span>
+      <span id="pingBadge" class="badge badge-ping" title="Round-Trip Network Latency">
+        ⚡ <span id="pingValue">-- ms</span>
+      </span>
+      <span id="linkBadge" class="badge badge-link" title="Transport Mode">
+        WI-FI LAN
+      </span>
+      <button id="btnToggleView" class="btn-view-switch" title="Switch between Base Station HUD and Handheld Radio UI">
+        📱 Handheld UI
+      </button>
     </div>
   </header>
 
-  <!-- Main View -->
-  <main>
-    <!-- Status & Info Card -->
-    <div class="status-card">
-      <div class="status-header">
-        <div class="channel-tag">CHANNEL: <span id="displayRoom" class="channel-id">UNASSIGNED</span></div>
-        <div class="live-indicator">
-          <span class="status-dot"></span>
-          <span id="statusLabel">DISCONNECTED</span>
+  <!-- ============================================================== -->
+  <!-- 🖥️ INTERFACE A: LAPTOP COMMAND BASE STATION CONSOLE          -->
+  <!-- ============================================================== -->
+  <section id="laptopConsole" class="view-container">
+    <div class="console-grid">
+
+      <!-- Left Column: Master Display & Transmission Deck -->
+      <div class="console-main">
+        <!-- Top Status Bar -->
+        <div class="tactical-hud-card">
+          <div class="hud-header">
+            <div class="hud-channel">
+              <span class="hud-label">SECURE FREQ:</span>
+              <span id="displayRoomLaptop" class="channel-callsign">ALPHA-MASTER</span>
+            </div>
+            <div class="hud-status-cluster">
+              <div class="peer-pill" id="peerPillLaptop">
+                <span class="pulse-indicator"></span>
+                <span id="peerLabelLaptop">PHONE STANDBY</span>
+              </div>
+              <div class="state-pill">
+                <span class="status-dot"></span>
+                <span id="statusLabelLaptop">OFFLINE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dual Visualizer: Waveform Oscilloscope & FFT Spectrum -->
+          <div class="visualizer-dual-box">
+            <canvas id="oscilloscopeLaptop"></canvas>
+            <div class="visualizer-overlay">
+              <span class="scope-mode-tag">LIVE OSCILLOSCOPE // 48 kHz</span>
+              <div class="vu-meters">
+                <div class="vu-meter-group">
+                  <span class="vu-tag">MIC</span>
+                  <div class="vu-bar-bg"><div id="vuMic" class="vu-bar-fill"></div></div>
+                </div>
+                <div class="vu-meter-group">
+                  <span class="vu-tag">RX</span>
+                  <div class="vu-bar-bg"><div id="vuPeer" class="vu-bar-fill rx"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="statusBannerLaptop" class="tactical-banner">TAP CONNECT OR SCAN WITH PHONE</div>
+        </div>
+
+        <!-- Heavy-Duty PTT Spacebar Transmission Deck -->
+        <div class="ptt-deck">
+          <div class="ptt-halo"></div>
+          <button id="pttBtnLaptop" class="ptt-tactical-button" disabled aria-label="Push To Talk">
+            <div class="ptt-inner-ring">
+              <svg class="ptt-icon" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+              <span id="pttTextLaptop" class="ptt-title">HOLD TO TALK</span>
+              <span id="pttSubtextLaptop" class="ptt-subtitle">SPACEBAR STANDBY</span>
+            </div>
+          </button>
+
+          <div class="keyboard-instruction">
+            <span>PRESS &amp; HOLD</span>
+            <kbd class="spacebar-badge">SPACEBAR</kbd>
+            <span>TO BROADCAST</span>
+          </div>
         </div>
       </div>
 
-      <!-- Live Oscilloscope Audio Waveform -->
-      <div class="visualizer-container">
-        <canvas id="oscilloscope"></canvas>
+      <!-- Right Column: Tactical Control Racks -->
+      <div class="console-sidebar">
+        <!-- RACK 1: Audio Processing & Roger Beeps -->
+        <div class="rack-card">
+          <div class="rack-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>AUDIO DSP &amp; ROGER BEEPS</span>
+          </div>
+
+          <div class="rack-body">
+            <!-- Mic Gain Slider -->
+            <div class="control-row">
+              <div class="control-label">
+                <span>Microphone Gain</span>
+                <span id="gainValueDisplay" class="value-badge">100%</span>
+              </div>
+              <input type="range" id="sliderGain" min="0" max="250" value="100" class="tactical-slider">
+            </div>
+
+            <!-- Noise Gate Threshold -->
+            <div class="control-row">
+              <div class="control-label">
+                <span>Noise Gate Threshold</span>
+                <span id="noiseGateDisplay" class="value-badge">Moderate</span>
+              </div>
+              <input type="range" id="sliderNoiseGate" min="0" max="3" value="1" class="tactical-slider">
+            </div>
+
+            <!-- Roger Beep Selector -->
+            <div class="control-row">
+              <label class="control-label" for="selectRogerBeep">Roger Beep Signature</label>
+              <select id="selectRogerBeep" class="tactical-select">
+                <option value="motorola">Motorola Dual-Tone Tactical</option>
+                <option value="nasa">NASA Apollo Quindar (2.47 kHz)</option>
+                <option value="chirp">Military Radar Chirp</option>
+                <option value="subtone">Digital Sub-Tone Pulse</option>
+                <option value="squelch">RF Squelch Tail Only</option>
+                <option value="off">Muted (Silent)</option>
+              </select>
+            </div>
+
+            <!-- Audio Enhancement Toggles -->
+            <div class="toggles-grid">
+              <label class="tactical-checkbox">
+                <input type="checkbox" id="chkEchoCancel" checked>
+                <span>Echo Cancel</span>
+              </label>
+              <label class="tactical-checkbox">
+                <input type="checkbox" id="chkNoiseSupp" checked>
+                <span>Noise Suppression</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- RACK 2: Live Network & Diagnostics Telemetry -->
+        <div class="rack-card">
+          <div class="rack-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span>LIVE NETWORK TELEMETRY</span>
+          </div>
+
+          <div class="rack-body telemetry-grid">
+            <div class="telemetry-item">
+              <span class="telemetry-label">ICE STATE</span>
+              <span id="valIceState" class="telemetry-value">DISCONNECTED</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">RTT LATENCY</span>
+              <span id="valLatency" class="telemetry-value">-- ms</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">TRANSPORT</span>
+              <span id="valTransport" class="telemetry-value">DTLS-SRTP</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">CHANNEL INTEGRITY</span>
+              <span id="valIntegrity" class="telemetry-value highlight">SECURE 1-TO-1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RACK 3: Exclusive Device Bonding & Quick Controls -->
+        <div class="rack-card">
+          <div class="rack-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>EXCLUSIVE BOND &amp; ACTIONS</span>
+          </div>
+
+          <div class="rack-body">
+            <div class="quick-actions-grid">
+              <button id="btnPairingLaptop" class="btn-action-tactical">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>
+                </svg>
+                <span>Pair / Bond Phone</span>
+              </button>
+
+              <button id="btnTunnelLaptop" class="btn-action-tactical">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                </svg>
+                <span id="tunnelTextLaptop">Mobile Data WAN</span>
+              </button>
+
+              <button id="btnModeLaptop" class="btn-action-tactical">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+                <span id="modeTextLaptop">Hold Mode</span>
+              </button>
+
+              <button id="btnResetBondLaptop" class="btn-action-tactical danger" title="Clear pairing bond and generate fresh security tokens">
+                <span>Reset Bond</span>
+              </button>
+            </div>
+
+            <!-- Intercom Activity Log -->
+            <div class="activity-log-box">
+              <div class="log-title">EVENT AUDIT LOG</div>
+              <div id="activityLog" class="log-entries">
+                <div class="log-entry"><span>00:00:00</span> DirectLink engine loaded.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ============================================================== -->
+  <!-- 📱 INTERFACE B: MOBILE HANDHELD TRANSCEIVER CHASSIS           -->
+  <!-- ============================================================== -->
+  <section id="mobileTransceiver" class="view-container">
+    <div class="radio-chassis">
+      
+      <!-- Top Antenna & Rotary Knobs Graphic -->
+      <div class="chassis-antenna-bar">
+        <div class="antenna-stub"></div>
+        <div class="knob-group">
+          <div class="chassis-knob" title="Volume Knob"></div>
+          <div class="chassis-knob" title="Channel Selector"></div>
+        </div>
       </div>
 
-      <div id="statusBanner" class="status-banner">TAP CONNECT TO START</div>
+      <!-- Tactical Backlit LCD Display -->
+      <div class="radio-lcd-screen">
+        <div class="lcd-header">
+          <div class="lcd-sig">
+            <span class="bar bar-1"></span>
+            <span class="bar bar-2"></span>
+            <span class="bar bar-3"></span>
+            <span class="bar bar-4"></span>
+            <span class="sig-tag">RF 5.8G</span>
+          </div>
+          <div class="lcd-channel-tag" id="displayRoomMobile">ALPHA-MASTER</div>
+          <div class="lcd-batt">98% ⚡</div>
+        </div>
+
+        <!-- LCD Live Miniature Waveform Canvas -->
+        <div class="lcd-scope-container">
+          <canvas id="oscilloscopeMobile"></canvas>
+        </div>
+
+        <div class="lcd-footer">
+          <span id="statusLabelMobile" class="lcd-status-text">STANDBY // ARMED</span>
+          <span id="pingMobile" class="lcd-meta">8 ms</span>
+        </div>
+      </div>
+
+      <!-- Speaker Grille Aesthetic -->
+      <div class="speaker-grille">
+        <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+        <span class="slot"></span><span class="slot"></span><span class="slot"></span>
+      </div>
+
+      <!-- Massive Tactical Push-To-Talk Button -->
+      <div class="mobile-ptt-container">
+        <div class="mobile-ptt-halo"></div>
+        <button id="pttBtnMobile" class="mobile-ptt-button" disabled aria-label="Push To Talk">
+          <div class="mobile-ptt-core">
+            <svg class="mobile-ptt-mic-icon" viewBox="0 0 24 24">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+            <span id="pttTextMobile" class="mobile-ptt-text">HOLD TO TALK</span>
+            <span id="pttSubtextMobile" class="mobile-ptt-sub">BONDED TO LAPTOP</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Mobile Tactical Action Dock -->
+      <div class="mobile-controls-dock">
+        <button id="btnMobileMode" class="btn-dock-tactical">
+          <span id="modeTextMobile">Hold</span>
+        </button>
+        <button id="btnMobileSettings" class="btn-dock-tactical">
+          <span>Audio DSP</span>
+        </button>
+        <button id="btnMobileDiag" class="btn-dock-tactical">
+          <span>Diagnostics</span>
+        </button>
+        <button id="btnMobilePair" class="btn-dock-tactical highlight">
+          <span>Pairing</span>
+        </button>
+      </div>
+
+      <!-- Persistent Uninterrupted Communication Pill -->
+      <div class="uninterrupted-status-bar">
+        <span class="uninterrupted-icon">🛡️</span>
+        <span id="uninterruptedLabel">UNINTERRUPTED MODE ACTIVE // WAKE-LOCK ON</span>
+      </div>
+
     </div>
+  </section>
 
-    <!-- PTT Action Center -->
-    <div class="ptt-section">
-      <div class="ptt-halo"></div>
-      <button id="pttBtn" class="ptt-button" disabled aria-label="Push To Talk">
-        <svg class="ptt-icon" viewBox="0 0 24 24">
-          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+
+  <!-- ============================================================== -->
+  <!-- 🎛️ MODAL 1: AUDIO SETTINGS & DSP DRAWER                       -->
+  <!-- ============================================================== -->
+  <div id="drawerSettings" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ready)" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
         </svg>
-        <span id="pttText" class="ptt-text">HOLD TO TALK</span>
-        <span id="pttSubtext" class="ptt-subtext">AUDIO STANDBY</span>
-      </button>
+        <span>Audio Settings &amp; Acoustic DSP</span>
+      </div>
 
-      <div class="keyboard-hint" id="keyboardHint">
-        <span>Press &amp; hold</span>
-        <span class="key-badge">SPACEBAR</span>
-        <span>to speak</span>
+      <div class="control-row">
+        <div class="control-label">
+          <span>Microphone Input Gain</span>
+          <span id="mobileGainValue" class="value-badge">100%</span>
+        </div>
+        <input type="range" id="sliderGainMobile" min="0" max="250" value="100" class="tactical-slider">
+      </div>
+
+      <div class="control-row">
+        <label class="control-label" for="selectRogerMobile">Roger Beep Signature</label>
+        <select id="selectRogerMobile" class="tactical-select">
+          <option value="motorola">Motorola Dual-Tone Tactical</option>
+          <option value="nasa">NASA Apollo Quindar (2.47 kHz)</option>
+          <option value="chirp">Military Radar Chirp</option>
+          <option value="subtone">Digital Sub-Tone Pulse</option>
+          <option value="squelch">RF Squelch Tail Only</option>
+          <option value="off">Muted (Silent)</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnCloseSettings" class="btn-primary">Save &amp; Close</button>
       </div>
     </div>
+  </div>
 
-    <!-- Controls & Quick Toggles -->
-    <div class="controls-grid">
-      <button id="btnPairing" class="btn-tactical" title="Pair Phone & Laptop">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-          <line x1="12" y1="18" x2="12.01" y2="18"></line>
-        </svg>
-        <span>Pair Phone</span>
-      </button>
 
-      <button id="btnModeToggle" class="btn-tactical" title="Toggle PTT or Handsfree">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-          <line x1="12" y1="2" x2="12" y2="12"></line>
-        </svg>
-        <span id="modeText">Hold Mode</span>
-      </button>
-
-      <button id="btnSoundFx" class="btn-tactical active" title="Toggle Roger Beeps">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-        </svg>
-        <span>Roger Beep</span>
-      </button>
-
-      <button id="btnTunnel" class="btn-tactical" title="Enable Mobile Data / Global Internet Access">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- ============================================================== -->
+  <!-- 📊 MODAL 2: LIVE TELEMETRY & DIAGNOSTICS DRAWER              -->
+  <!-- ============================================================== -->
+  <div id="drawerDiagnostics" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ready)" stroke-width="2">
           <circle cx="12" cy="12" r="10"></circle>
           <line x1="2" y1="12" x2="22" y2="12"></line>
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
         </svg>
-        <span id="tunnelText">Mobile Data WAN</span>
-      </button>
-    </div>
-  </main>
+        <span>Diagnostics &amp; Link Health</span>
+      </div>
 
-  <!-- Pairing & Network Setup Modal -->
-  <div id="pairingModal" class="modal-overlay">
+      <div class="telemetry-grid">
+        <div class="telemetry-item">
+          <span class="telemetry-label">PEER LATENCY (RTT)</span>
+          <span id="mobileValLatency" class="telemetry-value">-- ms</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">WEBRTC ICE STATE</span>
+          <span id="mobileValIce" class="telemetry-value">DISCONNECTED</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">BOND STATUS</span>
+          <span class="telemetry-value highlight">LOCKED TO LAPTOP</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">AUTO-RECONNECT</span>
+          <span class="telemetry-value highlight">ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnCloseDiag" class="btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- 🔗 MODAL 3: PAIRING & BONDING SETUP MODAL                      -->
+  <!-- ============================================================== -->
+  <div id="pairingModal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-title">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-ready)" stroke-width="2">
@@ -123,7 +432,7 @@
         <span>Intercom Pairing Setup</span>
       </div>
 
-      <!-- Server Endpoint Selector (Active on Mobile App / Capacitor & Remote) -->
+      <!-- Server Endpoint Selector -->
       <div class="input-group" id="groupServer">
         <label class="input-label" for="inputServer">Signaling Server URL / IP</label>
         <div style="display: flex; gap: 8px;">
@@ -156,7 +465,7 @@
       <!-- QR Code Preview for Phone Quick Pairing -->
       <div class="qr-preview-box" id="qrContainer">
         <img id="qrImage" alt="Pairing QR Code" src="">
-        <span class="qr-caption">Scan with Phone Camera to auto-connect instantly</span>
+        <span class="qr-caption">Scan with Phone Camera to auto-connect and bond instantly</span>
         <button id="btnCopyLink" class="btn-tactical" style="width: 100%;">
           <span>Copy Invite Link</span>
         </button>
@@ -164,7 +473,7 @@
 
       <div class="modal-actions">
         <button id="btnCancelModal" class="btn-tactical" style="display: none;">Cancel</button>
-        <button id="btnConnect" class="btn-primary">Connect Intercom</button>
+        <button id="btnConnect" class="btn-primary">Connect &amp; Bond Intercom</button>
       </div>
     </div>
   </div>

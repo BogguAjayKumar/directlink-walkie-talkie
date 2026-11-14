@@ -19,12 +19,6 @@ try {
   console.warn('localtunnel module not found, internet tunneling can be enabled later');
 }
 
-const HTTPS_PORT = process.env.PORT || 8443;
-const HTTP_PORT = process.env.HTTP_PORT || 8080;
-const CERTS_DIR = path.join(__dirname, 'certs');
-const KEY_PATH = path.join(CERTS_DIR, 'key.pem');
-const CERT_PATH = path.join(CERTS_DIR, 'cert.pem');
-
 // Helper: Get local network IPv4 addresses
 function getLocalIps() {
   const interfaces = os.networkInterfaces();
@@ -72,11 +66,66 @@ async function getOrGenerateCerts() {
   return { key: pems.private, cert: pems.cert };
 }
 
+const HTTPS_PORT = process.env.PORT || 8443;
+const HTTP_PORT = process.env.HTTP_PORT || 8080;
+const CERTS_DIR = path.join(__dirname, 'certs');
+const KEY_PATH = path.join(CERTS_DIR, 'key.pem');
+const CERT_PATH = path.join(CERTS_DIR, 'cert.pem');
+const BONDED_FILE = path.join(CERTS_DIR, 'bonded-pair.json');
+
+// Helper: Persistent Master Bonded Pair
+function loadBondedPair() {
+  try {
+    if (fs.existsSync(BONDED_FILE)) {
+      return JSON.parse(fs.readFileSync(BONDED_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Failed to load bonded-pair.json:', e);
+  }
+  return null;
+}
+
+function saveBondedPair(data) {
+  try {
+    fs.mkdirSync(CERTS_DIR, { recursive: true });
+    fs.writeFileSync(BONDED_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save bonded-pair.json:', e);
+  }
+}
+
 // Global state
 let activeTunnel = null;
 let tunnelUrl = null;
 const rooms = new Map(); // roomId -> { pin, createdAt, peers: Map<ws, { role, name, joinedAt }> }
 const pinAttempts = new Map(); // ip -> { count, lastAttempt }
+
+// Initialize Master Bonded Pair
+let bondedPair = loadBondedPair();
+if (!bondedPair) {
+  bondedPair = {
+    isBonded: true,
+    roomId: 'directlink-master',
+    pin: '849201',
+    pairToken: 'bond_' + Math.random().toString(36).substring(2, 12),
+    createdAt: Date.now(),
+    devices: {
+      laptop: { name: 'Command Laptop', lastSeen: 0, connected: false },
+      phone: { name: 'Handheld Phone', lastSeen: 0, connected: false }
+    }
+  };
+  saveBondedPair(bondedPair);
+  console.log(`[BOND] Master channel initialized: Room "${bondedPair.roomId}" | PIN: "${bondedPair.pin}"`);
+}
+
+// Ensure Master Bond room is permanently registered in memory
+rooms.set(bondedPair.roomId, {
+  pin: bondedPair.pin,
+  createdAt: bondedPair.createdAt,
+  pairToken: bondedPair.pairToken,
+  isMasterBond: true,
+  peers: new Map()
+});
 
 const app = express();
 app.use(express.json());
@@ -90,8 +139,68 @@ app.get('/api/info', (req, res) => {
     localIps: getLocalIps(),
     tunnelUrl: tunnelUrl,
     isTunneling: !!activeTunnel,
-    activeRooms: rooms.size
+    activeRooms: rooms.size,
+    bondedPair: {
+      isBonded: true,
+      roomId: bondedPair.roomId,
+      pin: bondedPair.pin,
+      pairToken: bondedPair.pairToken,
+      devices: bondedPair.devices
+    }
   });
+});
+
+// API: Get Master Bonded channel info
+app.get('/api/bond', (req, res) => {
+  const masterRoom = rooms.get(bondedPair.roomId);
+  const activePeers = masterRoom ? Array.from(masterRoom.peers.values()) : [];
+  res.json({
+    isBonded: true,
+    roomId: bondedPair.roomId,
+    pin: bondedPair.pin,
+    pairToken: bondedPair.pairToken,
+    activePeers,
+    devices: bondedPair.devices,
+    tunnelUrl: tunnelUrl,
+    localIps: getLocalIps(),
+    httpsPort: HTTPS_PORT
+  });
+});
+
+// API: Reset / Re-pair Master Bonded Channel
+app.post('/api/bond/reset', (req, res) => {
+  // Clear existing master room sockets
+  const oldRoom = rooms.get(bondedPair.roomId);
+  if (oldRoom) {
+    for (const [peerWs] of oldRoom.peers.entries()) {
+      peerWs.close(1000, 'Bond reset');
+    }
+    rooms.delete(bondedPair.roomId);
+  }
+
+  bondedPair = {
+    isBonded: true,
+    roomId: 'directlink-' + Math.random().toString(16).substring(2, 6),
+    pin: Math.floor(100000 + Math.random() * 900000).toString(),
+    pairToken: 'bond_' + Math.random().toString(36).substring(2, 12),
+    createdAt: Date.now(),
+    devices: {
+      laptop: { name: 'Command Laptop', lastSeen: 0, connected: false },
+      phone: { name: 'Handheld Phone', lastSeen: 0, connected: false }
+    }
+  };
+  saveBondedPair(bondedPair);
+
+  rooms.set(bondedPair.roomId, {
+    pin: bondedPair.pin,
+    createdAt: bondedPair.createdAt,
+    pairToken: bondedPair.pairToken,
+    isMasterBond: true,
+    peers: new Map()
+  });
+
+  console.log(`[BOND RESET] New master pair channel generated: Room "${bondedPair.roomId}" | PIN: "${bondedPair.pin}"`);
+  res.json({ success: true, bondedPair });
 });
 
 // API: Generate QR code image for fast mobile scanning
@@ -204,7 +313,18 @@ async function startServer() {
           }
 
           let room = rooms.get(roomId);
-          if (!room) {
+          const isMaster = (roomId === bondedPair.roomId) || (data.pairToken === bondedPair.pairToken);
+
+          if (!room && isMaster) {
+            room = {
+              pin: bondedPair.pin,
+              createdAt: bondedPair.createdAt,
+              pairToken: bondedPair.pairToken,
+              isMasterBond: true,
+              peers: new Map()
+            };
+            rooms.set(roomId, room);
+          } else if (!room) {
             // First device creates room
             room = {
               pin,
@@ -214,13 +334,29 @@ async function startServer() {
             rooms.set(roomId, room);
           } else {
             // Device joining existing room must provide matching PIN
-            if (room.pin !== pin) {
+            if (room.pin !== pin && (!isMaster || data.pairToken !== bondedPair.pairToken)) {
               attempts.count += 1;
               attempts.lastAttempt = now;
               pinAttempts.set(clientIp, attempts);
               ws.send(JSON.stringify({ type: 'error', message: 'Invalid PIN code for this channel' }));
               return;
             }
+
+            // UNINTERRUPTED RECONNECT LOGIC:
+            // Only replace stale socket if it is the authorized master bond with the matching secret pairToken
+            if (isMaster && data.pairToken === bondedPair.pairToken) {
+              for (const [existingWs, existingPeer] of room.peers.entries()) {
+                if (existingPeer.role === role && existingWs !== ws) {
+                  console.log(`[RECONNECT] Replacing stale connection for bonded role: ${role}`);
+                  try {
+                    existingWs.send(JSON.stringify({ type: 'replaced', message: 'New connection opened from same device' }));
+                    existingWs.close(1000, 'Replaced');
+                  } catch (e) {}
+                  room.peers.delete(existingWs);
+                }
+              }
+            }
+
             // Room capacity limit: 2 devices (Phone + Laptop direct walkie-talkie)
             if (room.peers.size >= 2) {
               ws.send(JSON.stringify({ type: 'error', message: 'Channel is full (maximum 2 devices connected)' }));
@@ -234,15 +370,24 @@ async function startServer() {
           currentRoomId = roomId;
           const peerInfo = {
             role: role || 'device',
-            name: deviceName || 'Anonymous',
+            name: deviceName || (role === 'laptop' ? 'Command Laptop' : 'Handheld Phone'),
             joinedAt: Date.now()
           };
           room.peers.set(ws, peerInfo);
+
+          if (isMaster && bondedPair.devices[role]) {
+            bondedPair.devices[role].name = peerInfo.name;
+            bondedPair.devices[role].lastSeen = Date.now();
+            bondedPair.devices[role].connected = true;
+            saveBondedPair(bondedPair);
+          }
 
           ws.send(JSON.stringify({
             type: 'joined',
             roomId,
             role: peerInfo.role,
+            isMasterBond: !!room.isMasterBond,
+            pairToken: isMaster ? bondedPair.pairToken : null,
             peerCount: room.peers.size,
             isInitiator: room.peers.size === 1
           }));
@@ -299,7 +444,11 @@ async function startServer() {
         }
 
         case 'ping': {
-          ws.send(JSON.stringify({ type: 'pong' }));
+          ws.send(JSON.stringify({
+            type: 'pong',
+            clientTime: data.clientTime || data.t,
+            serverTime: Date.now()
+          }));
           break;
         }
 
@@ -311,15 +460,26 @@ async function startServer() {
     ws.on('close', () => {
       if (currentRoomId && rooms.has(currentRoomId)) {
         const room = rooms.get(currentRoomId);
+        const myPeer = room.peers.get(ws);
+        const role = myPeer ? myPeer.role : null;
         room.peers.delete(ws);
-        if (room.peers.size === 0) {
+
+        if (room.isMasterBond && role && bondedPair.devices[role]) {
+          bondedPair.devices[role].connected = false;
+          bondedPair.devices[role].lastSeen = Date.now();
+          saveBondedPair(bondedPair);
+        }
+
+        // Only delete the room if it's NOT the master bonded channel
+        if (!room.isMasterBond && room.peers.size === 0) {
           rooms.delete(currentRoomId);
         } else {
-          // Notify remaining peer that the other side disconnected
+          // Notify remaining peer that the other side disconnected / went into standby
           for (const [otherWs] of room.peers.entries()) {
             if (otherWs.readyState === WebSocket.OPEN) {
               otherWs.send(JSON.stringify({
                 type: 'peer-left',
+                role,
                 peerCount: room.peers.size
               }));
             }
