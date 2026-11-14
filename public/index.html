@@ -43,6 +43,48 @@
     </div>
   </header>
 
+  <!-- 3-Way Tactical Connection Mode Selector -->
+  <div class="mode-selector-strip">
+    <div class="mode-strip-inner">
+      <button id="btnModeWifi" class="btn-mode-tab active" data-mode="wifi" title="Direct Local Wi-Fi Network">
+        <span class="mode-icon">📶</span>
+        <span class="mode-label">1. Local Wi-Fi</span>
+      </button>
+      <button id="btnModeWan" class="btn-mode-tab" data-mode="wan" title="Cellular Mobile Data + Wi-Fi Global Relay">
+        <span class="mode-icon">🌐</span>
+        <span class="mode-label">2. Mobile Data + Wi-Fi</span>
+      </button>
+      <button id="btnModeFreq" class="btn-mode-tab" data-mode="freq" title="Dial Walkie-Talkie Frequencies (FM / UHF)">
+        <span class="mode-icon">📻</span>
+        <span class="mode-label">3. Radio Freq Dial</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tactical Radio Frequency Dial (Active in Mode 3) -->
+  <div id="freqTunerBar" class="freq-tuner-bar hidden">
+    <div class="freq-screen">
+      <span class="freq-label">VIRTUAL RF FREQUENCY:</span>
+      <span id="currentFreqValue" class="freq-mhz">462.5625 MHz</span>
+      <span class="freq-channel-pill" id="currentFreqChannel">CH 01</span>
+    </div>
+    <div class="freq-selector-wrap">
+      <select id="selectRadioFreq" class="tactical-select">
+        <option value="462.5625|CH 01">CH 01 — 462.5625 MHz (Primary FRS)</option>
+        <option value="462.5875|CH 02">CH 02 — 462.5875 MHz (Tactical Secondary)</option>
+        <option value="462.6125|CH 03">CH 03 — 462.6125 MHz (Command Direct)</option>
+        <option value="462.6375|CH 04">CH 04 — 462.6375 MHz (Patrol Line)</option>
+        <option value="467.5625|CH 08">CH 08 — 467.5625 MHz (High Power Intercom)</option>
+        <option value="144.3900|VHF 01">VHF 01 — 144.3900 MHz (Marine Emergency)</option>
+        <option value="custom">Dial Custom MHz Frequency...</option>
+      </select>
+      <div id="customFreqBox" class="custom-freq-box hidden">
+        <input type="text" id="inputCustomFreq" class="input-field" placeholder="e.g. 433.92" maxlength="10">
+        <button id="btnApplyFreq" class="btn-tactical">Tune</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============================================================== -->
   <!-- 🖥️ INTERFACE A: LAPTOP COMMAND BASE STATION CONSOLE          -->
   <!-- ============================================================== -->
@@ -51,6 +93,15 @@
 
       <!-- Left Column: Master Display & Transmission Deck -->
       <div class="console-main">
+        <!-- Prominent Device Connection Status Banner -->
+        <div id="peerStatusBannerLaptop" class="peer-status-strip offline">
+          <div class="peer-status-main">
+            <span class="peer-status-dot"></span>
+            <span id="peerStatusDeviceNameLaptop" class="peer-name">PHONE DISCONNECTED</span>
+          </div>
+          <span id="peerStatusHintLaptop" class="peer-hint">Waiting for Phone to link...</span>
+        </div>
+
         <!-- Top Status Bar -->
         <div class="tactical-hud-card">
           <div class="hud-header">
@@ -270,6 +321,15 @@
         </div>
       </div>
 
+      <!-- Prominent Device Connection Status Banner -->
+      <div id="peerStatusBannerMobile" class="peer-status-strip offline">
+        <div class="peer-status-main">
+          <span class="peer-status-dot"></span>
+          <span id="peerStatusDeviceNameMobile" class="peer-name">LAPTOP DISCONNECTED</span>
+        </div>
+        <span id="peerStatusHintMobile" class="peer-hint">Waiting for Laptop to link...</span>
+      </div>
+
       <!-- Tactical Backlit LCD Display -->
       <div class="radio-lcd-screen">
         <div class="lcd-header">
@@ -469,10 +529,15 @@
         <button id="btnCopyLink" class="btn-tactical" style="width: 100%;">
           <span>Copy Invite Link</span>
         </button>
+        <div style="margin-top: 8px; width: 100%;">
+          <a href="/app-debug.apk" download="DirectLink-WalkieTalkie.apk" class="btn-tactical" style="display: block; text-align: center; text-decoration: none; padding: 8px 12px; font-size: 11px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;">
+            📲 Download Phone APK Directly
+          </a>
+        </div>
       </div>
 
       <div class="modal-actions">
-        <button id="btnCancelModal" class="btn-tactical" style="display: none;">Cancel</button>
+        <button id="btnCancelModal" class="btn-tactical">Close</button>
         <button id="btnConnect" class="btn-primary">Connect &amp; Bond Intercom</button>
       </div>
     </div>

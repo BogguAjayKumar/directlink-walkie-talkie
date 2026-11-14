@@ -1,6 +1,7 @@
 /**
  * DirectLink Tactical Walkie-Talkie Client
  * Multi-Interface WebRTC Intercom with Exclusive Laptop <-> Phone Bonding,
+ * 3-Way Mode Switching (Local Wi-Fi, Mobile Data WAN, Virtual RF Radio),
  * Audio DSP Gain Control, Procedural Roger Beeps & Uninterrupted Auto-Reconnection.
  */
 
@@ -15,6 +16,29 @@
   const pingBadge = document.getElementById('pingBadge');
   const pingValue = document.getElementById('pingValue');
   const linkBadge = document.getElementById('linkBadge');
+
+  // 3-Way Mode Selector Strip
+  const btnModeWifi = document.getElementById('btnModeWifi');
+  const btnModeWan = document.getElementById('btnModeWan');
+  const btnModeFreq = document.getElementById('btnModeFreq');
+
+  // Virtual Radio Frequency Tuner Bar (Mode 3)
+  const freqTunerBar = document.getElementById('freqTunerBar');
+  const currentFreqValue = document.getElementById('currentFreqValue');
+  const currentFreqChannel = document.getElementById('currentFreqChannel');
+  const selectRadioFreq = document.getElementById('selectRadioFreq');
+  const customFreqBox = document.getElementById('customFreqBox');
+  const inputCustomFreq = document.getElementById('inputCustomFreq');
+  const btnApplyFreq = document.getElementById('btnApplyFreq');
+
+  // Prominent Device Connection Status Banners
+  const peerStatusBannerLaptop = document.getElementById('peerStatusBannerLaptop');
+  const peerStatusDeviceNameLaptop = document.getElementById('peerStatusDeviceNameLaptop');
+  const peerStatusHintLaptop = document.getElementById('peerStatusHintLaptop');
+
+  const peerStatusBannerMobile = document.getElementById('peerStatusBannerMobile');
+  const peerStatusDeviceNameMobile = document.getElementById('peerStatusDeviceNameMobile');
+  const peerStatusHintMobile = document.getElementById('peerStatusHintMobile');
 
   // Laptop Console Elements
   const displayRoomLaptop = document.getElementById('displayRoomLaptop');
@@ -99,6 +123,17 @@
   const isMobilePlatform = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   let currentView = isMobilePlatform ? 'mobile' : 'laptop';
   let deviceRole = isMobilePlatform ? 'phone' : 'laptop';
+  let localDeviceName = isMobilePlatform ? 'Handheld Phone' : 'Command Laptop';
+
+  // Check URL parameters for role override
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('role')) {
+    deviceRole = urlParams.get('role');
+    localDeviceName = deviceRole === 'phone' ? 'Handheld Phone' : 'Command Laptop';
+  }
+
+  let activeIntercomMode = 'wifi'; // 'wifi' | 'wan' | 'freq'
+  let currentRfSetting = '462.5625|CH 01';
 
   let currentRoomId = '';
   let currentPin = '';
@@ -109,10 +144,12 @@
   let pc = null;
   let localStream = null;
   let localAudioTrack = null;
+  let remotePeerInfo = null;
   let wakeLock = null;
   let reconnectInterval = null;
   let pingInterval = null;
   let rttLatency = null;
+  let animFrameId = null;
 
   let isConnected = false;
   let isTransmitting = false;
@@ -126,14 +163,12 @@
   let localAnalyser = null;
   let remoteAnalyser = null;
   let micGainNode = null;
-  let dynamicsCompressor = null;
-  let mediaStreamDest = null;
   let userGainMultiplier = 1.0;
-  let noiseGateLevel = 1; // 0=off, 1=mod, 2=high, 3=ultra
   let audioUnlocked = false;
 
   let serverInfo = {
     localIps: [],
+    httpPort: 8080,
     httpsPort: 8443,
     tunnelUrl: null,
     isTunneling: false,
@@ -157,9 +192,11 @@
     }
   }
 
-  btnToggleView.addEventListener('click', () => {
-    updateViewMode(currentView === 'laptop' ? 'mobile' : 'laptop');
-  });
+  if (btnToggleView) {
+    btnToggleView.addEventListener('click', () => {
+      updateViewMode(currentView === 'laptop' ? 'mobile' : 'laptop');
+    });
+  }
 
   // --- Event Audit Logger ---
   function logEvent(msg) {
@@ -189,10 +226,8 @@
       audioCtx.resume().catch(() => {});
     }
 
-    // Start imperceptible silent keep-alive oscillator to prevent mobile OS suspension
     startSilentKeepAlive();
 
-    // Touch remoteAudio element to bypass mobile autoplay policies
     if (remoteAudio) {
       const p = remoteAudio.play();
       if (p !== undefined) {
@@ -200,6 +235,16 @@
       }
     }
   }
+
+  // Global user interaction listener to unlock audio on first touch
+  ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
+    window.addEventListener(evt, () => {
+      unlockAudio();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    }, { once: false, passive: true });
+  });
 
   // Silent Keep-Alive Loop for Background Audio Persistence
   function startSilentKeepAlive() {
@@ -279,10 +324,12 @@
       const room = searchParams.get('room');
       const pin = searchParams.get('pin');
       const token = searchParams.get('token');
+      const mode = searchParams.get('mode');
+      const freq = searchParams.get('freq');
       const server = searchParams.get('server') || (serverBase && serverBase.startsWith('http') ? serverBase : null);
 
-      if (room || pin || server || token) {
-        return { room, pin, server, token };
+      if (room || pin || server || token || mode || freq) {
+        return { room, pin, server, token, mode, freq };
       }
     } catch (e) {
       console.warn('Failed to parse URL:', e);
@@ -296,14 +343,17 @@
   }
 
   function getShareableUrl() {
-    const base = selectNetwork.value || window.location.origin;
-    const room = inputRoom.value.trim();
-    const pin = inputPin.value.trim();
+    const base = selectNetwork ? (selectNetwork.value || window.location.origin) : window.location.origin;
+    const room = inputRoom ? inputRoom.value.trim() : currentRoomId;
+    const pin = inputPin ? inputPin.value.trim() : currentPin;
     const tokenPart = currentPairToken ? `&token=${encodeURIComponent(currentPairToken)}` : '';
-    return `${base}/#room=${encodeURIComponent(room)}&pin=${encodeURIComponent(pin)}${tokenPart}&server=${encodeURIComponent(base)}`;
+    const modePart = activeIntercomMode ? `&mode=${encodeURIComponent(activeIntercomMode)}` : '';
+    const freqPart = activeIntercomMode === 'freq' ? `&freq=${encodeURIComponent(currentRfSetting)}` : '';
+    return `${base}/#room=${encodeURIComponent(room)}&pin=${encodeURIComponent(pin)}${tokenPart}${modePart}${freqPart}&server=${encodeURIComponent(base)}`;
   }
 
   async function updateQrCode() {
+    if (!qrImage) return;
     const url = getShareableUrl();
     try {
       const { httpOrigin } = resolveServerEndpoints();
@@ -327,8 +377,12 @@
         if (serverInfo.bondedPair) {
           isBondedMaster = true;
           currentPairToken = serverInfo.bondedPair.pairToken;
-          bondStatusText.textContent = 'BONDED (PC ↔ PHONE)';
-          bondBadge.classList.add('badge-bond');
+          if (bondStatusText) {
+            bondStatusText.textContent = hasRemotePeer
+              ? 'BONDED: LAPTOP ↔ PHONE (LIVE)'
+              : 'BONDED (PC ↔ PHONE)';
+          }
+          if (bondBadge) bondBadge.classList.add('badge-bond');
         }
       }
     } catch (e) {
@@ -341,22 +395,18 @@
     if (btnTunnelLaptop) {
       if (isTun) {
         btnTunnelLaptop.classList.add('active');
-        tunnelTextLaptop.textContent = 'WAN Active';
-        linkBadge.textContent = 'WAN RELAY';
-        linkBadge.style.color = 'var(--accent-ready)';
+        if (tunnelTextLaptop) tunnelTextLaptop.textContent = 'WAN Active';
       } else {
         btnTunnelLaptop.classList.remove('active');
-        tunnelTextLaptop.textContent = 'Mobile Data WAN';
-        linkBadge.textContent = 'WI-FI LAN';
-        linkBadge.style.color = '#fde047';
+        if (tunnelTextLaptop) tunnelTextLaptop.textContent = 'Mobile Data WAN';
       }
     }
   }
 
   function updateNetworkOptions() {
+    if (!selectNetwork) return;
     selectNetwork.innerHTML = '';
 
-    // Tunnel option if active (always top recommended!)
     if (serverInfo.tunnelUrl) {
       const opt = document.createElement('option');
       opt.value = serverInfo.tunnelUrl;
@@ -368,13 +418,13 @@
     if (serverInfo.localIps && serverInfo.localIps.length > 0) {
       serverInfo.localIps.forEach(({ name, ip }) => {
         const optHttp = document.createElement('option');
-        optHttp.value = `http://${ip}:${serverInfo.httpPort}`;
-        optHttp.textContent = `Wi-Fi HTTP (${ip}:${serverInfo.httpPort}) [APK / No SSL warning]`;
+        optHttp.value = `http://${ip}:${serverInfo.httpPort || 8080}`;
+        optHttp.textContent = `Wi-Fi HTTP (${ip}:${serverInfo.httpPort || 8080}) [APK / Direct]`;
         selectNetwork.appendChild(optHttp);
 
         const optHttps = document.createElement('option');
-        optHttps.value = `https://${ip}:${serverInfo.httpsPort}`;
-        optHttps.textContent = `Wi-Fi HTTPS (${ip}:${serverInfo.httpsPort}) [Self-Signed]`;
+        optHttps.value = `https://${ip}:${serverInfo.httpsPort || 8443}`;
+        optHttps.textContent = `Wi-Fi HTTPS (${ip}:${serverInfo.httpsPort || 8443}) [Self-Signed]`;
         selectNetwork.appendChild(optHttps);
       });
     } else {
@@ -387,27 +437,204 @@
     updateQrCode();
   }
 
+  // --- Prominent Device Connection Status Banner Controller ---
+  function updatePeerStatusDisplay(isOnline, peer = null) {
+    if (peer) remotePeerInfo = peer;
+    const targetPeer = peer || remotePeerInfo;
+    const peerRole = targetPeer?.role || (deviceRole === 'laptop' ? 'phone' : 'laptop');
+    const peerName = targetPeer?.name || (peerRole === 'phone' ? 'Handheld Phone' : 'Command Laptop');
+
+    // Laptop HUD Banner
+    if (peerStatusBannerLaptop && peerStatusDeviceNameLaptop && peerStatusHintLaptop) {
+      if (isOnline) {
+        peerStatusBannerLaptop.classList.remove('offline');
+        peerStatusBannerLaptop.classList.add('connected');
+        peerStatusDeviceNameLaptop.textContent = `PHONE CONNECTED: ${peerName}`;
+        peerStatusHintLaptop.textContent = '● Live Full-Duplex DirectLink Ready (Hold SPACE to talk)';
+      } else {
+        peerStatusBannerLaptop.classList.add('offline');
+        peerStatusBannerLaptop.classList.remove('connected');
+        peerStatusDeviceNameLaptop.textContent = 'PHONE DISCONNECTED';
+        peerStatusHintLaptop.textContent = 'Waiting for Phone to link...';
+      }
+    }
+
+    // Mobile Transceiver Banner
+    if (peerStatusBannerMobile && peerStatusDeviceNameMobile && peerStatusHintMobile) {
+      if (isOnline) {
+        peerStatusBannerMobile.classList.remove('offline');
+        peerStatusBannerMobile.classList.add('connected');
+        peerStatusDeviceNameMobile.textContent = `LAPTOP CONNECTED: ${peerName}`;
+        peerStatusHintMobile.textContent = '● Live Full-Duplex DirectLink Ready (Hold PTT to talk)';
+      } else {
+        peerStatusBannerMobile.classList.add('offline');
+        peerStatusBannerMobile.classList.remove('connected');
+        peerStatusDeviceNameMobile.textContent = 'LAPTOP DISCONNECTED';
+        peerStatusHintMobile.textContent = 'Waiting for Laptop to link...';
+      }
+    }
+
+    // Header Bond Status Tag
+    if (bondStatusText) {
+      bondStatusText.textContent = isOnline
+        ? `BONDED: LAPTOP ↔ PHONE (LIVE)`
+        : `BONDED (PC ↔ PHONE)`;
+    }
+  }
+
+  // --- 3-Way Mode Switcher Controller ---
+  function setIntercomMode(mode, doReconnect = true) {
+    activeIntercomMode = mode;
+    localStorage.setItem('directlink_active_mode', mode);
+
+    // Update active tab buttons
+    if (btnModeWifi) btnModeWifi.classList.toggle('active', mode === 'wifi');
+    if (btnModeWan) btnModeWan.classList.toggle('active', mode === 'wan');
+    if (btnModeFreq) btnModeFreq.classList.toggle('active', mode === 'freq');
+
+    if (mode === 'wifi') {
+      if (freqTunerBar) freqTunerBar.classList.add('hidden');
+      if (linkBadge) {
+        linkBadge.textContent = 'WI-FI LAN';
+        linkBadge.style.color = '#38bdf8';
+      }
+      logEvent('Switched to Mode 1: Local Wi-Fi (LAN Direct)');
+
+      if (doReconnect) {
+        const masterRoom = serverInfo.bondedPair ? serverInfo.bondedPair.roomId : (localStorage.getItem('directlink_room') || 'directlink-master');
+        const masterPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201');
+        const pairToken = serverInfo.bondedPair ? serverInfo.bondedPair.pairToken : currentPairToken;
+        connectIntercom(masterRoom, masterPin, pairToken);
+      }
+    } else if (mode === 'wan') {
+      if (freqTunerBar) freqTunerBar.classList.add('hidden');
+      if (linkBadge) {
+        linkBadge.textContent = 'WAN RELAY';
+        linkBadge.style.color = 'var(--accent-ready)';
+      }
+      logEvent('Switched to Mode 2: Mobile Data + Wi-Fi (Global Relay)');
+
+      // If tunnel is not active, request server to open WAN tunnel
+      if (!serverInfo.isTunneling) {
+        logEvent('Opening encrypted WAN tunnel for cellular mobile data...');
+        const { httpOrigin } = resolveServerEndpoints();
+        fetch(`${httpOrigin}/api/tunnel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enable: true })
+        }).then(r => r.json()).then(data => {
+          if (data.tunnelUrl) {
+            serverInfo.tunnelUrl = data.tunnelUrl;
+            serverInfo.isTunneling = true;
+            updateTunnelButtonState();
+            updateNetworkOptions();
+            logEvent(`WAN Relay ready at: ${data.tunnelUrl}`);
+          }
+        }).catch(err => console.warn('Tunnel request error:', err));
+      }
+
+      if (doReconnect) {
+        const masterRoom = serverInfo.bondedPair ? serverInfo.bondedPair.roomId : (localStorage.getItem('directlink_room') || 'directlink-master');
+        const masterPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201');
+        const pairToken = serverInfo.bondedPair ? serverInfo.bondedPair.pairToken : currentPairToken;
+        connectIntercom(masterRoom, masterPin, pairToken);
+      }
+    } else if (mode === 'freq') {
+      if (freqTunerBar) freqTunerBar.classList.remove('hidden');
+      if (linkBadge) {
+        linkBadge.textContent = 'RF RADIO';
+        linkBadge.style.color = '#f59e0b';
+      }
+      logEvent(`Switched to Mode 3: Radio Frequency Dialing (${currentRfSetting})`);
+
+      applyRfFrequency(currentRfSetting, doReconnect);
+    }
+  }
+
+  // Apply Radio Frequency & Channel Room Mapping
+  function applyRfFrequency(rawSetting, doReconnect = true) {
+    currentRfSetting = rawSetting;
+    localStorage.setItem('directlink_rf_freq', rawSetting);
+
+    const parts = rawSetting.split('|');
+    const mhz = parts[0];
+    const channelName = parts[1] || 'CUSTOM';
+
+    if (currentFreqValue) currentFreqValue.textContent = `${mhz} MHz`;
+    if (currentFreqChannel) currentFreqChannel.textContent = channelName;
+
+    // Room ID derived deterministically from the frequency
+    const sanitizedFreq = mhz.replace(/[^0-9]/g, '-');
+    const rfRoomId = `rf-${sanitizedFreq}`;
+    const standardPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : '849201';
+
+    logEvent(`Tuned Walkie-Talkie Frequency: ${mhz} MHz [${channelName}] (Channel: ${rfRoomId})`);
+
+    if (doReconnect) {
+      connectIntercom(rfRoomId, standardPin, currentPairToken);
+    }
+  }
+
+  // Mode Selector Event Listeners
+  if (btnModeWifi) btnModeWifi.addEventListener('click', () => setIntercomMode('wifi', true));
+  if (btnModeWan) btnModeWan.addEventListener('click', () => setIntercomMode('wan', true));
+  if (btnModeFreq) btnModeFreq.addEventListener('click', () => setIntercomMode('freq', true));
+
+  // Frequency Dial Event Listeners
+  if (selectRadioFreq) {
+    selectRadioFreq.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'custom') {
+        if (customFreqBox) customFreqBox.classList.remove('hidden');
+        if (inputCustomFreq) inputCustomFreq.focus();
+      } else {
+        if (customFreqBox) customFreqBox.classList.add('hidden');
+        applyRfFrequency(val, true);
+      }
+    });
+  }
+
+  if (btnApplyFreq) {
+    btnApplyFreq.addEventListener('click', () => {
+      const customVal = inputCustomFreq ? inputCustomFreq.value.trim() : '';
+      if (!customVal) {
+        alert('Please enter a frequency in MHz (e.g. 433.92)');
+        return;
+      }
+      const formatted = `${customVal}|CUSTOM`;
+      applyRfFrequency(formatted, true);
+    });
+  }
+
   // --- Visualizer & VU Meter Canvas Pipeline ---
   function setupLocalVisualizer(stream) {
     if (!audioCtx) return;
-    localAnalyser = audioCtx.createAnalyser();
-    localAnalyser.fftSize = 256;
-    localAnalyser.smoothingTimeConstant = 0.8;
+    try {
+      localAnalyser = audioCtx.createAnalyser();
+      localAnalyser.fftSize = 256;
+      localAnalyser.smoothingTimeConstant = 0.8;
 
-    const source = audioCtx.createMediaStreamSource(stream);
-    source.connect(localAnalyser);
-    startVisualizerLoop();
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(localAnalyser);
+      startVisualizerLoop();
+    } catch (e) {
+      console.warn('Local visualizer error:', e);
+    }
   }
 
   function setupRemoteVisualizer(stream) {
     if (!audioCtx) return;
-    remoteAnalyser = audioCtx.createAnalyser();
-    remoteAnalyser.fftSize = 256;
-    remoteAnalyser.smoothingTimeConstant = 0.8;
+    try {
+      remoteAnalyser = audioCtx.createAnalyser();
+      remoteAnalyser.fftSize = 256;
+      remoteAnalyser.smoothingTimeConstant = 0.8;
 
-    remoteSource = audioCtx.createMediaStreamSource(stream);
-    remoteSource.connect(remoteAnalyser);
-    startVisualizerLoop();
+      const remoteSource = audioCtx.createMediaStreamSource(stream);
+      remoteSource.connect(remoteAnalyser);
+      startVisualizerLoop();
+    } catch (e) {
+      console.warn('Remote visualizer error:', e);
+    }
   }
 
   function startVisualizerLoop() {
@@ -418,16 +645,17 @@
     function render() {
       animFrameId = requestAnimationFrame(render);
 
-      // Active Analyser Selection
       const activeAnalyser = isTransmitting ? localAnalyser : (hasRemotePeer ? remoteAnalyser : null);
 
       let peakLevel = 0;
       if (activeAnalyser) {
-        activeAnalyser.getByteTimeDomainData(dataArray);
-        for (let i = 0; i < dataArray.length; i++) {
-          const val = Math.abs(dataArray[i] - 128);
-          if (val > peakLevel) peakLevel = val;
-        }
+        try {
+          activeAnalyser.getByteTimeDomainData(dataArray);
+          for (let i = 0; i < dataArray.length; i++) {
+            const val = Math.abs(dataArray[i] - 128);
+            if (val > peakLevel) peakLevel = val;
+          }
+        } catch (e) {}
       }
 
       const percent = Math.min(100, Math.round((peakLevel / 128) * 100 * 2.2));
@@ -448,6 +676,7 @@
       if (oscilloscopeLaptop) {
         drawScope(oscilloscopeLaptop, dataArray, isTransmitting, isReceiving);
       }
+
       // Draw Mobile Oscilloscope
       if (oscilloscopeMobile) {
         drawScope(oscilloscopeMobile, dataArray, isTransmitting, isReceiving);
@@ -459,8 +688,8 @@
 
   function drawScope(canvas, dataArray, transmitting, receiving) {
     const ctx = canvas.getContext('2d');
-    const width = canvas.width = canvas.clientWidth;
-    const height = canvas.height = canvas.clientHeight;
+    const width = canvas.width = canvas.clientWidth || 300;
+    const height = canvas.height = canvas.clientHeight || 100;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -501,9 +730,16 @@
     ctx.shadowBlur = 0;
   }
 
-  // --- Microphone & DSP Audio Graph Setup ---
+  // --- Microphone & WebRTC Track Setup (Robust & Direct) ---
   async function initMicrophone() {
     if (localStream) return localStream;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn('Microphone API unavailable. In browser, access via HTTPS or use Android APK.');
+      logEvent('Microphone API waiting for secure origin / permission.');
+      return null;
+    }
+
     try {
       unlockAudio();
 
@@ -520,33 +756,30 @@
         video: false
       });
 
-      // DSP Processing: Source -> GainNode -> Compressor -> MediaStreamDestination
-      const rawSource = audioCtx.createMediaStreamSource(rawStream);
-
-      micGainNode = audioCtx.createGain();
-      micGainNode.gain.value = userGainMultiplier;
-
-      dynamicsCompressor = audioCtx.createDynamicsCompressor();
-      dynamicsCompressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
-      dynamicsCompressor.knee.setValueAtTime(10, audioCtx.currentTime);
-      dynamicsCompressor.ratio.setValueAtTime(6, audioCtx.currentTime);
-
-      mediaStreamDest = audioCtx.createMediaStreamDestination();
-
-      rawSource.connect(micGainNode);
-      micGainNode.connect(dynamicsCompressor);
-      dynamicsCompressor.connect(mediaStreamDest);
-
-      localStream = mediaStreamDest.stream;
-      localAudioTrack = localStream.getAudioTracks()[0];
+      // Keep native raw microphone track for zero-latency direct WebRTC transmission!
+      localStream = rawStream;
+      localAudioTrack = rawStream.getAudioTracks()[0];
       localAudioTrack.enabled = false; // Standby muted
 
+      // Connect to Web Audio Analyser for Oscilloscope visualization
       setupLocalVisualizer(rawStream);
+
+      // If WebRTC connection is already established, attach track immediately
+      if (pc && localAudioTrack) {
+        const senders = pc.getSenders();
+        const hasTrack = senders.some(s => s.track && s.track.kind === 'audio');
+        if (!hasTrack) {
+          pc.addTrack(localAudioTrack, localStream);
+          logEvent('Microphone track attached to active WebRTC session.');
+        }
+      }
+
+      logEvent('Microphone hardware successfully initialized & armed.');
       return localStream;
     } catch (err) {
-      console.error('Microphone initialization failed:', err);
-      alert('Microphone access is required for intercom operation. Please enable permissions.');
-      throw err;
+      console.warn('Microphone permission or hardware access note:', err.message);
+      logEvent(`Mic note: ${err.name} - ${err.message}`);
+      return null;
     }
   }
 
@@ -567,19 +800,27 @@
 
     pc = new RTCPeerConnection(rtcConfig);
 
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream);
-      });
+    if (localStream && localAudioTrack) {
+      try {
+        pc.addTrack(localAudioTrack, localStream);
+      } catch (e) {
+        console.warn('Could not add track:', e);
+      }
     }
 
     // Remote Audio Playout (Immediate Handsfree WebRTC Stream)
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Remote media track incoming');
-      remoteAudio.srcObject = event.streams[0];
-      remoteAudio.play().catch(e => console.warn('Autoplay error:', e));
+      console.log('[WebRTC] Remote media track incoming', event.streams[0]);
+      if (remoteAudio) {
+        remoteAudio.srcObject = event.streams[0];
+        const p = remoteAudio.play();
+        if (p !== undefined) {
+          p.catch(e => console.warn('Remote audio waiting for interaction:', e));
+        }
+      }
       setupRemoteVisualizer(event.streams[0]);
       hasRemotePeer = true;
+      updatePeerStatusDisplay(true, remotePeerInfo);
       setAppState('standby');
     };
 
@@ -599,10 +840,12 @@
 
       if (state === 'connected' || state === 'completed') {
         hasRemotePeer = true;
+        updatePeerStatusDisplay(true, remotePeerInfo);
         setAppState('standby');
         logEvent('P2P Direct DTLS-SRTP Audio Channel Established.');
       } else if (state === 'disconnected' || state === 'failed') {
         hasRemotePeer = false;
+        updatePeerStatusDisplay(false, remotePeerInfo);
         setAppState('reconnecting');
         logEvent('P2P Audio Connection dropped. Renegotiating...');
       }
@@ -633,15 +876,23 @@
   }
 
   // --- Push-To-Talk State Controller ---
-  function handlePttDown() {
+  async function handlePttDown() {
     if (!isConnected || !hasRemotePeer || isTransmitting) return;
 
     unlockAudio();
+
+    // Ensure mic is acquired
+    if (!localAudioTrack) {
+      await initMicrophone();
+    }
+
     isTransmitting = true;
     setAppState('transmitting');
     soundFx.playMicClick();
 
-    if ('vibrate' in navigator) navigator.vibrate(40);
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate(40); } catch (e) {}
+    }
 
     if (localAudioTrack) {
       localAudioTrack.enabled = true;
@@ -688,84 +939,89 @@
   function setAppState(state) {
     body.classList.remove('state-disconnected', 'state-connecting', 'state-standby', 'state-transmitting', 'state-receiving', 'state-reconnecting', 'peer-connected');
 
+    const peerName = remotePeerInfo?.name || (deviceRole === 'laptop' ? 'Handheld Phone' : 'Command Laptop');
+
     switch (state) {
       case 'disconnected':
         body.classList.add('state-disconnected');
-        statusLabelLaptop.textContent = 'OFFLINE';
-        statusBannerLaptop.textContent = 'INTERCOM OFFLINE // TAP TO CONNECT';
-        statusLabelMobile.textContent = 'OFFLINE';
-        pttBtnLaptop.disabled = true;
-        pttBtnMobile.disabled = true;
-        pttTextLaptop.textContent = 'OFFLINE';
-        pttTextMobile.textContent = 'OFFLINE';
+        if (statusLabelLaptop) statusLabelLaptop.textContent = 'OFFLINE';
+        if (statusBannerLaptop) statusBannerLaptop.textContent = 'INTERCOM OFFLINE // TAP TO CONNECT';
+        if (statusLabelMobile) statusLabelMobile.textContent = 'OFFLINE';
+        if (pttBtnLaptop) pttBtnLaptop.disabled = true;
+        if (pttBtnMobile) pttBtnMobile.disabled = true;
+        if (pttTextLaptop) pttTextLaptop.textContent = 'OFFLINE';
+        if (pttTextMobile) pttTextMobile.textContent = 'OFFLINE';
+        updatePeerStatusDisplay(false);
         break;
 
       case 'connecting':
         body.classList.add('state-connecting');
-        statusLabelLaptop.textContent = 'CONNECTING';
-        statusBannerLaptop.textContent = 'CONNECTING TO SIGNALING HUB...';
-        statusLabelMobile.textContent = 'CONNECTING...';
-        pttBtnLaptop.disabled = true;
-        pttBtnMobile.disabled = true;
+        if (statusLabelLaptop) statusLabelLaptop.textContent = 'CONNECTING';
+        if (statusBannerLaptop) statusBannerLaptop.textContent = 'CONNECTING TO SIGNALING HUB...';
+        if (statusLabelMobile) statusLabelMobile.textContent = 'CONNECTING...';
+        if (pttBtnLaptop) pttBtnLaptop.disabled = true;
+        if (pttBtnMobile) pttBtnMobile.disabled = true;
         break;
 
       case 'reconnecting':
         body.classList.add('state-reconnecting');
-        statusLabelLaptop.textContent = 'RECONNECTING';
-        statusBannerLaptop.textContent = 'NETWORK SWITCH DETECTED // AUTO-RECONNECTING...';
-        statusLabelMobile.textContent = 'RECONNECTING...';
-        pttBtnLaptop.disabled = true;
-        pttBtnMobile.disabled = true;
+        if (statusLabelLaptop) statusLabelLaptop.textContent = 'RECONNECTING';
+        if (statusBannerLaptop) statusBannerLaptop.textContent = 'AUTO-RECONNECTING TO BONDED PEER...';
+        if (statusLabelMobile) statusLabelMobile.textContent = 'RECONNECTING...';
+        if (pttBtnLaptop) pttBtnLaptop.disabled = true;
+        if (pttBtnMobile) pttBtnMobile.disabled = true;
         break;
 
       case 'standby':
         body.classList.add('state-standby');
         if (hasRemotePeer) {
           body.classList.add('peer-connected');
-          peerLabelLaptop.textContent = 'PHONE ONLINE';
-          statusLabelLaptop.textContent = 'ARMED';
-          statusBannerLaptop.textContent = 'CHANNEL ARMED // READY TO TALK';
-          statusLabelMobile.textContent = 'LAPTOP ONLINE';
-          pttBtnLaptop.disabled = false;
-          pttBtnMobile.disabled = false;
-          pttTextLaptop.textContent = isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK';
-          pttTextMobile.textContent = isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK';
-          pttSubtextLaptop.textContent = 'AUDIO STANDBY';
-          pttSubtextMobile.textContent = 'BONDED TO LAPTOP';
+          if (peerLabelLaptop) peerLabelLaptop.textContent = `${peerName.toUpperCase()} ONLINE`;
+          if (statusLabelLaptop) statusLabelLaptop.textContent = 'ARMED';
+          if (statusBannerLaptop) statusBannerLaptop.textContent = `CHANNEL ARMED // ${peerName.toUpperCase()} READY`;
+          if (statusLabelMobile) statusLabelMobile.textContent = 'ONLINE // ARMED';
+          if (pttBtnLaptop) pttBtnLaptop.disabled = false;
+          if (pttBtnMobile) pttBtnMobile.disabled = false;
+          if (pttTextLaptop) pttTextLaptop.textContent = isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK';
+          if (pttTextMobile) pttTextMobile.textContent = isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK';
+          if (pttSubtextLaptop) pttSubtextLaptop.textContent = 'AUDIO STANDBY';
+          if (pttSubtextMobile) pttSubtextMobile.textContent = `BONDED TO ${peerName.toUpperCase()}`;
+          updatePeerStatusDisplay(true, remotePeerInfo);
         } else {
-          peerLabelLaptop.textContent = 'WAITING PEER';
-          statusLabelLaptop.textContent = 'STANDBY';
-          statusBannerLaptop.textContent = 'WAITING FOR SECOND DEVICE TO CONNECT...';
-          statusLabelMobile.textContent = 'WAITING PEER';
-          pttBtnLaptop.disabled = true;
-          pttBtnMobile.disabled = true;
-          pttTextLaptop.textContent = 'WAITING';
-          pttTextMobile.textContent = 'WAITING';
+          if (peerLabelLaptop) peerLabelLaptop.textContent = 'WAITING PEER';
+          if (statusLabelLaptop) statusLabelLaptop.textContent = 'STANDBY';
+          if (statusBannerLaptop) statusBannerLaptop.textContent = 'WAITING FOR SECOND DEVICE TO CONNECT...';
+          if (statusLabelMobile) statusLabelMobile.textContent = 'WAITING PEER';
+          if (pttBtnLaptop) pttBtnLaptop.disabled = true;
+          if (pttBtnMobile) pttBtnMobile.disabled = true;
+          if (pttTextLaptop) pttTextLaptop.textContent = 'WAITING';
+          if (pttTextMobile) pttTextMobile.textContent = 'WAITING';
+          updatePeerStatusDisplay(false);
         }
         break;
 
       case 'transmitting':
         body.classList.add('state-transmitting', 'peer-connected');
-        statusLabelLaptop.textContent = 'TRANSMITTING';
-        statusBannerLaptop.textContent = 'LIVE // YOU ARE BROADCASTING';
-        statusLabelMobile.textContent = 'TALKING';
-        pttBtnLaptop.classList.add('active');
-        pttBtnMobile.classList.add('active');
-        pttTextLaptop.textContent = 'TALKING';
-        pttTextMobile.textContent = 'TRANSMITTING';
-        pttSubtextLaptop.textContent = 'RELEASE SPACEBAR TO STOP';
-        pttSubtextMobile.textContent = 'RELEASE TO FINISH';
+        if (statusLabelLaptop) statusLabelLaptop.textContent = 'TRANSMITTING';
+        if (statusBannerLaptop) statusBannerLaptop.textContent = 'LIVE // YOU ARE BROADCASTING';
+        if (statusLabelMobile) statusLabelMobile.textContent = 'TALKING';
+        if (pttBtnLaptop) pttBtnLaptop.classList.add('active');
+        if (pttBtnMobile) pttBtnMobile.classList.add('active');
+        if (pttTextLaptop) pttTextLaptop.textContent = 'TALKING';
+        if (pttTextMobile) pttTextMobile.textContent = 'TRANSMITTING';
+        if (pttSubtextLaptop) pttSubtextLaptop.textContent = 'RELEASE SPACEBAR TO STOP';
+        if (pttSubtextMobile) pttSubtextMobile.textContent = 'RELEASE TO FINISH';
         break;
 
       case 'receiving':
         body.classList.add('state-receiving', 'peer-connected');
-        statusLabelLaptop.textContent = 'RECEIVING';
-        statusBannerLaptop.textContent = 'INCOMING TRANSMISSION FROM PEER';
-        statusLabelMobile.textContent = 'INCOMING VOICE';
-        pttTextLaptop.textContent = 'LISTENING';
-        pttTextMobile.textContent = 'LISTENING';
-        pttSubtextLaptop.textContent = 'PEER BROADCASTING';
-        pttSubtextMobile.textContent = 'REMOTE DEVICE TALKING';
+        if (statusLabelLaptop) statusLabelLaptop.textContent = 'RECEIVING';
+        if (statusBannerLaptop) statusBannerLaptop.textContent = `INCOMING VOICE FROM ${peerName.toUpperCase()}`;
+        if (statusLabelMobile) statusLabelMobile.textContent = 'INCOMING VOICE';
+        if (pttTextLaptop) pttTextLaptop.textContent = 'LISTENING';
+        if (pttTextMobile) pttTextMobile.textContent = 'LISTENING';
+        if (pttSubtextLaptop) pttSubtextLaptop.textContent = `${peerName.toUpperCase()} BROADCASTING`;
+        if (pttSubtextMobile) pttSubtextMobile.textContent = `${peerName.toUpperCase()} TALKING`;
         break;
     }
   }
@@ -777,11 +1033,11 @@
     currentPin = pin;
     if (pairToken) currentPairToken = pairToken;
 
-    displayRoomLaptop.textContent = roomId.toUpperCase();
-    displayRoomMobile.textContent = roomId.toUpperCase();
+    if (displayRoomLaptop) displayRoomLaptop.textContent = roomId.toUpperCase();
+    if (displayRoomMobile) displayRoomMobile.textContent = roomId.toUpperCase();
 
     setAppState('connecting');
-    await initMicrophone();
+    initMicrophone().catch(() => {});
     requestWakeLock();
 
     const { wsUrl } = resolveServerEndpoints();
@@ -791,7 +1047,12 @@
       try { ws.close(); } catch (e) {}
     }
 
-    ws = new WebSocket(wsUrl);
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      console.warn('WebSocket connection error:', e);
+      return;
+    }
 
     ws.onopen = () => {
       logEvent('Signaling connection established.');
@@ -804,10 +1065,9 @@
         pin: currentPin,
         pairToken: currentPairToken,
         role: deviceRole,
-        deviceName: isMobilePlatform ? 'Mobile Phone' : 'Command Laptop'
+        deviceName: localDeviceName
       }));
 
-      // Start Latency Ping Heartbeat
       startPingHeartbeat();
     };
 
@@ -822,7 +1082,7 @@
       switch (data.type) {
         case 'joined': {
           isConnected = true;
-          pairingModal.classList.add('hidden');
+          if (pairingModal) pairingModal.classList.add('hidden');
           if (data.isMasterBond) isBondedMaster = true;
           if (data.pairToken) {
             currentPairToken = data.pairToken;
@@ -840,22 +1100,28 @@
 
         case 'peer-joined': {
           hasRemotePeer = true;
+          remotePeerInfo = data.peer || null;
+          updatePeerStatusDisplay(true, remotePeerInfo);
           setAppState('standby');
           soundFx.playConnectChime();
-          logEvent('Remote paired device arrived on channel.');
+          logEvent(`Remote paired device linked: ${remotePeerInfo ? remotePeerInfo.name : 'Peer'}`);
           createPeerConnection(true); // Initiate clean WebRTC handshake
           break;
         }
 
         case 'peer-status': {
           hasRemotePeer = true;
+          remotePeerInfo = data.peer || null;
+          updatePeerStatusDisplay(true, remotePeerInfo);
           setAppState('standby');
           soundFx.playConnectChime();
+          logEvent(`Connected to active peer: ${remotePeerInfo ? remotePeerInfo.name : 'Peer'}`);
           break;
         }
 
         case 'peer-left': {
           hasRemotePeer = false;
+          updatePeerStatusDisplay(false, remotePeerInfo);
           setAppState('standby');
           logEvent('Remote paired device went offline / standby.');
           break;
@@ -909,7 +1175,7 @@
           logEvent(`Server Alert: ${data.message}`);
           if (data.message.includes('PIN')) {
             alert(data.message);
-            pairingModal.classList.remove('hidden');
+            if (pairingModal) pairingModal.classList.remove('hidden');
           }
           break;
         }
@@ -920,6 +1186,7 @@
       isConnected = false;
       stopPingHeartbeat();
       setAppState('reconnecting');
+      updatePeerStatusDisplay(false);
       logEvent('Signaling connection severed. Reconnecting supervisor active...');
 
       // UNINTERRUPTED AUTO-RECONNECT LOOP: Retry every 1.5s
@@ -990,32 +1257,36 @@
   });
 
   // Laptop PTT Button
-  pttBtnLaptop.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    if (isToggleMode) togglePtt();
-    else handlePttDown();
-  });
-  window.addEventListener('mouseup', () => {
-    if (!isToggleMode && isTransmitting) handlePttUp();
-  });
+  if (pttBtnLaptop) {
+    pttBtnLaptop.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      if (isToggleMode) togglePtt();
+      else handlePttDown();
+    });
+    window.addEventListener('mouseup', () => {
+      if (!isToggleMode && isTransmitting) handlePttUp();
+    });
+  }
 
   // Mobile PTT Button (Touch & Mouse)
-  pttBtnMobile.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (isToggleMode) togglePtt();
-    else handlePttDown();
-  }, { passive: false });
+  if (pttBtnMobile) {
+    pttBtnMobile.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (isToggleMode) togglePtt();
+      else handlePttDown();
+    }, { passive: false });
 
-  pttBtnMobile.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    if (!isToggleMode && isTransmitting) handlePttUp();
-  });
+    pttBtnMobile.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (!isToggleMode && isTransmitting) handlePttUp();
+    });
 
-  pttBtnMobile.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    if (isToggleMode) togglePtt();
-    else handlePttDown();
-  });
+    pttBtnMobile.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      if (isToggleMode) togglePtt();
+      else handlePttDown();
+    });
+  }
 
   // Mode Toggles (Hold to Talk vs Handsfree Toggle)
   function togglePttMode() {
@@ -1057,17 +1328,17 @@
   if (selectRogerMobile) selectRogerMobile.addEventListener('change', (e) => updateRogerBeep(e.target.value));
 
   // Mobile Drawers
-  if (btnMobileSettings) btnMobileSettings.addEventListener('click', () => drawerSettings.classList.remove('hidden'));
-  if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => drawerSettings.classList.add('hidden'));
+  if (btnMobileSettings) btnMobileSettings.addEventListener('click', () => drawerSettings && drawerSettings.classList.remove('hidden'));
+  if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => drawerSettings && drawerSettings.classList.add('hidden'));
 
-  if (btnMobileDiag) btnMobileDiag.addEventListener('click', () => drawerDiagnostics.classList.remove('hidden'));
-  if (btnCloseDiag) btnCloseDiag.addEventListener('click', () => drawerDiagnostics.classList.add('hidden'));
+  if (btnMobileDiag) btnMobileDiag.addEventListener('click', () => drawerDiagnostics && drawerDiagnostics.classList.remove('hidden'));
+  if (btnCloseDiag) btnCloseDiag.addEventListener('click', () => drawerDiagnostics && drawerDiagnostics.classList.add('hidden'));
 
-  // Mobile WAN Tunnel Toggle
+  // Mobile WAN Tunnel Button (Laptop)
   if (btnTunnelLaptop) {
     btnTunnelLaptop.addEventListener('click', async () => {
       const shouldEnable = !serverInfo.isTunneling;
-      tunnelTextLaptop.textContent = shouldEnable ? 'Connecting...' : 'Closing...';
+      if (tunnelTextLaptop) tunnelTextLaptop.textContent = shouldEnable ? 'Connecting...' : 'Closing...';
       try {
         const { httpOrigin } = resolveServerEndpoints();
         const res = await fetch(`${httpOrigin}/api/tunnel`, {
@@ -1088,12 +1359,13 @@
 
   // Pairing Modal & Bond Reset
   function openPairingModal() {
-    pairingModal.classList.remove('hidden');
+    if (pairingModal) pairingModal.classList.remove('hidden');
     fetchServerInfo().then(updateQrCode);
   }
 
   if (btnPairingLaptop) btnPairingLaptop.addEventListener('click', openPairingModal);
   if (btnMobilePair) btnMobilePair.addEventListener('click', openPairingModal);
+  if (btnCancelModal) btnCancelModal.addEventListener('click', () => pairingModal && pairingModal.classList.add('hidden'));
 
   if (btnResetBondLaptop) {
     btnResetBondLaptop.addEventListener('click', async () => {
@@ -1129,8 +1401,10 @@
             inputServer.value = parsed.server;
             localStorage.setItem('directlink_server_url', parsed.server);
           }
-          if (parsed.room) inputRoom.value = parsed.room;
-          if (parsed.pin) inputPin.value = parsed.pin;
+          if (parsed.room && inputRoom) inputRoom.value = parsed.room;
+          if (parsed.pin && inputPin) inputPin.value = parsed.pin;
+          if (parsed.mode) setIntercomMode(parsed.mode, false);
+          if (parsed.freq) applyRfFrequency(parsed.freq, false);
           alert('Invite parameters applied! Click "Connect & Bond Intercom" to start.');
         } else {
           alert('Could not parse link. Please check the URL.');
@@ -1139,34 +1413,41 @@
     });
   }
 
-  btnCopyLink.addEventListener('click', async () => {
-    const url = getShareableUrl();
-    try {
-      await navigator.clipboard.writeText(url);
-      btnCopyLink.querySelector('span').textContent = 'Copied to Clipboard!';
-      setTimeout(() => { btnCopyLink.querySelector('span').textContent = 'Copy Invite Link'; }, 2000);
-    } catch (err) {
-      prompt('Copy this link:', url);
-    }
-  });
+  if (btnCopyLink) {
+    btnCopyLink.addEventListener('click', async () => {
+      const url = getShareableUrl();
+      try {
+        await navigator.clipboard.writeText(url);
+        const span = btnCopyLink.querySelector('span');
+        if (span) {
+          span.textContent = 'Copied to Clipboard!';
+          setTimeout(() => { span.textContent = 'Copy Invite Link'; }, 2000);
+        }
+      } catch (err) {
+        prompt('Copy this link:', url);
+      }
+    });
+  }
 
-  btnConnect.addEventListener('click', () => {
-    unlockAudio();
-    if (inputServer && inputServer.value.trim()) {
-      localStorage.setItem('directlink_server_url', inputServer.value.trim());
-    }
-    const room = inputRoom.value.trim().toLowerCase();
-    const pin = inputPin.value.trim();
-    if (!room || !pin) {
-      alert('Please enter both Channel Name and 6-digit PIN');
-      return;
-    }
-    if (pin.length !== 6 || !/^\d+$/.test(pin)) {
-      alert('PIN must be exactly 6 digits');
-      return;
-    }
-    connectIntercom(room, pin);
-  });
+  if (btnConnect) {
+    btnConnect.addEventListener('click', () => {
+      unlockAudio();
+      if (inputServer && inputServer.value.trim()) {
+        localStorage.setItem('directlink_server_url', inputServer.value.trim());
+      }
+      const room = inputRoom ? inputRoom.value.trim().toLowerCase() : '';
+      const pin = inputPin ? inputPin.value.trim() : '';
+      if (!room || !pin) {
+        alert('Please enter both Channel Name and 6-digit PIN');
+        return;
+      }
+      if (pin.length !== 6 || !/^\d+$/.test(pin)) {
+        alert('PIN must be exactly 6 digits');
+        return;
+      }
+      connectIntercom(room, pin);
+    });
+  }
 
   // --- Initial Startup & Auto-Bond Execution ---
   window.addEventListener('DOMContentLoaded', async () => {
@@ -1182,14 +1463,25 @@
     const savedServer = localStorage.getItem('directlink_server_url');
     if (savedServer && inputServer) inputServer.value = savedServer;
 
+    const savedMode = localStorage.getItem('directlink_active_mode') || 'wifi';
+    const savedRf = localStorage.getItem('directlink_rf_freq') || '462.5625|CH 01';
+    currentRfSetting = savedRf;
+    if (selectRadioFreq) selectRadioFreq.value = savedRf;
+
     // Check URL Hash first (e.g. Scanned via QR code)
     const hashData = parseUrlHash();
     if (hashData && hashData.room && hashData.pin) {
-      inputRoom.value = hashData.room;
-      inputPin.value = hashData.pin;
+      if (inputRoom) inputRoom.value = hashData.room;
+      if (inputPin) inputPin.value = hashData.pin;
       if (hashData.server && inputServer) {
         inputServer.value = hashData.server;
         localStorage.setItem('directlink_server_url', hashData.server);
+      }
+      if (hashData.mode) {
+        setIntercomMode(hashData.mode, false);
+      }
+      if (hashData.freq) {
+        applyRfFrequency(hashData.freq, false);
       }
       logEvent(`Auto-connecting to scanned frequency "${hashData.room}"...`);
       await fetchServerInfo();
@@ -1197,28 +1489,35 @@
       return;
     }
 
-    // Check Local Storage for Existing Bond
+    // Fetch server info and master bond status
+    await fetchServerInfo();
+
+    // Check if user was in RF Frequency Dial Mode
+    if (savedMode === 'freq') {
+      setIntercomMode('freq', true);
+      return;
+    }
+
+    // Zero-Touch Persistent Auto-Connect
     const savedRoom = localStorage.getItem('directlink_room');
     const savedPin = localStorage.getItem('directlink_pin');
     const savedToken = localStorage.getItem('directlink_pair_token');
 
-    // Fetch server info and master bond status
-    await fetchServerInfo();
-
     if (savedRoom && savedPin) {
-      inputRoom.value = savedRoom;
-      inputPin.value = savedPin;
+      if (inputRoom) inputRoom.value = savedRoom;
+      if (inputPin) inputPin.value = savedPin;
       logEvent(`Connecting to bonded frequency "${savedRoom}"...`);
+      setIntercomMode(savedMode, false);
       connectIntercom(savedRoom, savedPin, savedToken);
     } else if (serverInfo.bondedPair) {
       // Auto-adopt Server Master Bond
       const bp = serverInfo.bondedPair;
-      inputRoom.value = bp.roomId;
-      inputPin.value = bp.pin;
+      if (inputRoom) inputRoom.value = bp.roomId;
+      if (inputPin) inputPin.value = bp.pin;
       logEvent(`Adopting master bonded channel "${bp.roomId}"...`);
+      setIntercomMode(savedMode, false);
       connectIntercom(bp.roomId, bp.pin, bp.pairToken);
     } else {
-      // Default initial pairing modal
       openPairingModal();
     }
   });

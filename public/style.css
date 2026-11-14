@@ -1154,3 +1154,163 @@ body.state-transmitting .mobile-ptt-halo {
   0% { transform: scale(0.95); opacity: 0.7; }
   100% { transform: scale(1.05); opacity: 1; }
 }
+
+/* 3-Way Tactical Mode Selector Strip */
+.mode-selector-strip {
+  background: rgba(10, 15, 25, 0.95);
+  border-bottom: 1px solid rgba(0, 255, 204, 0.2);
+  padding: 8px 16px;
+  display: flex;
+  justify-content: center;
+  z-index: 40;
+}
+
+.mode-strip-inner {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 900px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-mode-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-mode-tab:hover {
+  background: rgba(0, 255, 204, 0.1);
+  color: var(--text-main);
+  border-color: rgba(0, 255, 204, 0.4);
+}
+
+.btn-mode-tab.active {
+  background: linear-gradient(135deg, rgba(0, 255, 204, 0.2), rgba(0, 119, 182, 0.25));
+  border-color: var(--accent-ready);
+  color: var(--accent-ready);
+  box-shadow: 0 0 14px var(--accent-ready-glow);
+  font-weight: 700;
+}
+
+/* Frequency Tuner Bar (Mode 3) */
+.freq-tuner-bar {
+  background: #04080e;
+  border-bottom: 2px solid var(--accent-ready);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.freq-screen {
+  background: #051a12;
+  border: 1px solid #00ffaa;
+  padding: 6px 14px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+}
+
+.freq-label {
+  font-size: 0.65rem;
+  color: #6ee7b7;
+}
+
+.freq-mhz {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #00ffcc;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px var(--accent-ready-glow);
+}
+
+.freq-channel-pill {
+  background: #00ffcc;
+  color: #000;
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.freq-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.custom-freq-box {
+  display: flex;
+  gap: 6px;
+}
+
+/* Prominent Device Connection Status Strip */
+.peer-status-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+}
+
+.peer-status-strip.offline {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.peer-status-strip.connected {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  color: #86efac;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.2);
+}
+
+.peer-status-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.peer-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.peer-status-strip.connected .peer-status-dot {
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e;
+  animation: pulse 1s infinite alternate;
+}
+
+.peer-name {
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.peer-hint {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
