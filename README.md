@@ -23,9 +23,16 @@ No ringing, no answering screens, no call pickups—press or hold to talk, and y
 
 * **Instant Hardware-like Walkie-Talkie:** 
   Zero pickup friction. Once paired, the two devices maintain a persistent, bidirectional WebRTC audio standby line. Tap or hold to transmit immediately.
-* **Dual Network Modes:**
-  * **Local Wi-Fi (LAN):** Direct local peer-to-peer connection with sub-10ms audio latency.
-  * **Cellular Data (WAN):** 1-Click built-in secure public HTTPS tunnel that punches through cellular Carrier-Grade NAT (CGNAT) so you can communicate across anywhere in the world.
+* **3 Tactical Connection Modes:**
+  * **1. Local Wi-Fi (LAN Mode):** Ultra-fast sub-10ms peer-to-peer audio on the same Wi-Fi network without requiring external internet.
+  * **2. Mobile Data + Wi-Fi (WAN Relay Mode):** Encrypted global HTTPS/WSS tunnel allowing phone on 4G/5G mobile data to communicate with laptop anywhere in the world.
+  * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Tune to authentic UHF/FM/FRS frequencies (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or dial custom MHz). Tuning both devices to the same frequency links them instantly!
+* **Live Device Name & Connection Status Display:**
+  Prominent real-time status banners on both Laptop and Phone interfaces displaying live link state and device identity (`PHONE CONNECTED: Handheld Phone` / `LAPTOP CONNECTED: Command Laptop`).
+* **Zero-Touch Persistent Auto-Connect:**
+  Pair once—never re-type PINs or reconnect manually again. The app automatically restores the master bonded connection on launch and handles network switches seamlessly within 1.5s.
+* **Android APK with Auto-Granted Mic Permissions:**
+  Capacitor native Android app pre-configured with Android runtime audio permissions and `BridgeWebChromeClient` WebRTC grants to avoid WebView mic permission loops. Direct APK download available directly from the server.
 * **Tactical Cyberpunk / Military UI:**
   * Real-time **Oscilloscope Audio Visualizer** rendering outgoing and incoming speech waveforms directly on an HTML5 Canvas.
   * Responsive tactile **Push-to-Talk (PTT)** button with haptic vibration on mobile devices.
