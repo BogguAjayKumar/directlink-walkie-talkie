@@ -1,7 +1,7 @@
 {
   "name": "directlink-walkie-talkie",
-  "version": "1.0.0",
-  "description": "Instant, end-to-end encrypted push-to-talk (PTT) audio intercom connecting phone and laptop across Wi-Fi and Cellular Mobile Data (4G/5G).",
+  "version": "1.1.0",
+  "description": "Tactical, instant, zero-latency WebRTC Push-to-Talk (PTT) audio intercom connecting phone and laptop with dedicated station master & handheld radio UIs, VOX hands-free, last-call replay, AES-256-GCM E2EE, SOS emergency beacon, and tactical RF DSP.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -22,6 +22,11 @@
     "pwa",
     "audio-streaming",
     "e2ee",
+    "vox",
+    "emergency-beacon",
+    "audio-dsp",
+    "web-bluetooth",
+    "tactical-radio",
     "websocket",
     "nodejs"
   ],

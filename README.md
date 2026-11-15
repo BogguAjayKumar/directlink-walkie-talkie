@@ -2,20 +2,21 @@
 
 # 📡 DirectLink Walkie-Talkie
 ### Instant, Zero-Latency, Two-Way Audio Intercom for Phone & Laptop
-#### Split Codebases for Phone & Laptop • 3 Connection Modes • Authentic Tactical Acoustics
+#### Dedicated Phone & Laptop Interfaces • VOX Hands-Free • Replay Buffer • AES-256 E2EE • SOS Beacon • Tactical RF DSP
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![WebRTC](https://img.shields.io/badge/WebRTC-DTLS--SRTP-blue.svg)](https://webrtc.org/)
+[![E2EE](https://img.shields.io/badge/Security-AES--256--GCM-gold.svg)](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto)
 [![Android APK](https://img.shields.io/badge/Android-APK%20Ready-green.svg)](https://capacitorjs.com/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable-purple.svg)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/BogguAjayKumar/directlink-walkie-talkie/pulls)
 
 **DirectLink** is a lightweight, hardware-like Push-to-Talk (PTT) full-duplex audio intercom system exclusively designed to pair your **laptop and phone** over **local Wi-Fi**, **cellular mobile data (4G/5G)**, or **virtual walkie-talkie radio frequencies**.
 
-No ringing, no answering screens, no call pickups—press or hold to talk, and your voice broadcasts instantly through the other device's speaker with authentic tactical radio acoustics (mic clicks, squelch tails, and Motorola/NASA Roger beeps).
+No ringing, no answering screens, no call pickups—press or hold to talk (or switch on VOX hands-free), and your voice broadcasts instantly through the other device's speaker with authentic tactical radio acoustics (mic clicks, squelch tails, and Motorola/NASA Roger beeps).
 
-[Key Features](#-key-features) • [Separate File Architecture](#-separate-file-architecture) • [Quick Start](#-quick-start) • [How to Test Two-Way Audio](#-how-to-test-two-way-audio) • [3 Connection Modes](#-3-tactical-connection-modes) • [Android APK](#-native-android-app-apk) • [Security](#-security--privacy)
+[Key Features](#-key-features) • [Tactical Capabilities](#-tactical-capabilities-v11) • [Separate File Architecture](#-separate-file-architecture) • [Quick Start](#-quick-start) • [How to Test](#-how-to-test-two-way-audio) • [3 Connection Modes](#-3-tactical-connection-modes) • [Android APK](#-native-android-app-apk) • [Security](#-security--privacy)
 
 ---
 
@@ -27,6 +28,7 @@ No ringing, no answering screens, no call pickups—press or hold to talk, and y
   Instant hardware-like communication. Talk on your laptop → heard instantly on your phone. Talk on your phone → heard instantly on your laptop.
 * **Completely Separated Codebases for Phone & Laptop:**
   Independent, modular code files for each device. Easily locate, tweak, and style the phone app or laptop app without interfering with each other:
+  * **Smart Auto-Router:** `public/index.html` (auto-detects mobile vs. desktop and routes instantly while preserving room & PIN credentials)
   * **Phone Walkie-Talkie:** `public/phone.html`, `public/phone.js`, `public/phone.css`
   * **Laptop Command Station:** `public/laptop.html`, `public/laptop.js`, `public/laptop.css`
 * **3 Tactical Connection Modes:**
@@ -35,7 +37,7 @@ No ringing, no answering screens, no call pickups—press or hold to talk, and y
   * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Dial standard UHF/FM/FRS walkie-talkie channels (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or custom MHz). Tuning both devices to the same frequency links them instantly!
 * **Distinct Visual Interfaces:**
   * **💻 Laptop Console HUD:** Wide cyberpunk/military terminal in deep navy & cyan with dual real-time oscilloscopes, VU meters (MIC & RX), Spacebar hotkey deck (`PRESS & HOLD SPACEBAR TO BROADCAST`), and audio DSP dials.
-  * **📱 Phone Transceiver:** Authentic handheld radio chassis with top antenna, rotary volume/channel knobs, backlit fluorescent green LCD screen showing battery & signal strength, speaker grille, and a giant rubberized Push-To-Talk button.
+  * **📱 Phone Transceiver:** Authentic handheld radio chassis with top antenna, rotary volume/channel knobs, backlit fluorescent green LCD screen showing battery & signal strength, speaker grille, and a giant rubberized Push-To-Talk button with haptic feedback.
 * **Persistent Zero-Touch Auto-Connect:**
   Pair once—never re-type PINs or manually reconnect again. Devices automatically remember each other, restore the master bonded channel on startup, and auto-reconnect within 1.5 seconds if network drops or changes.
 * **Conflict-Free Role Negotiation:**
@@ -48,6 +50,40 @@ No ringing, no answering screens, no call pickups—press or hold to talk, and y
 
 ---
 
+## 🛡 Tactical Capabilities (v1.1)
+
+DirectLink v1.1 introduces 6 powerful hardware-grade communication features:
+
+### 1. 🎙️ Hands-Free VOX (Voice-Activated Transmission)
+* **Automatic Voice Gate:** Automatically keys the microphone when speaking and releases when silent.
+* **Adjustable Sensitivity:** Switch between **Low**, **Medium**, and **High** threshold presets.
+* **Anti-Chatter Hangover Delay:** 700ms decay hangover prevents clipped speech endings and jitter between natural pauses.
+
+### 2. 📼 Tactical Last-Call Replay Buffer
+* **Circular In-Memory Buffer:** Continuously records incoming peer audio into an indexed 30-second rolling buffer using the `MediaRecorder` API.
+* **One-Touch Review:** Tap **`REPLAY LAST`** to instantly playback the last incoming transmission at normal or high speed without asking the other user to repeat.
+
+### 3. 🔘 Hardware Bluetooth PTT & Headset Trigger
+* **Web Bluetooth API:** Connect external BLE PTT buttons (Flic, custom Arduino BLE switches, smart rings) via `navigator.bluetooth.requestDevice`.
+* **MediaSession API Support:** Long-press or click headset inline wire/Bluetooth buttons (`play`, `pause`, `stop`, `nexttrack`) to toggle transmission directly from your pocket.
+
+### 4. 🔐 Zero-Knowledge AES-256-GCM E2EE
+* **Cryptographic Passphrase Derivation:** WebCrypto `SubtleCrypto` derives 256-bit AES-GCM keys from custom shared passphrases via SHA-256 hashing.
+* **Visual Cryptographic Status:** Real-time badges indicate active encryption state and key derivation confirmation.
+
+### 5. 🚨 SOS Emergency Beacon with GPS Geolocation
+* **Dual-Tone Emergency Siren:** Synthesizes an alternating 960 Hz / 770 Hz high-penetration acoustic warble siren.
+* **Precision Geolocation Broadcast:** Captures high-accuracy GPS coordinates (`navigator.geolocation`) and transmits a high-priority `{ type: "sos-beacon" }` packet over WebSockets.
+* **Flashing Emergency HUD:** Triggers an un-dismissible flashing red modal on the remote peer with coordinates, timestamp, and a direct Google Maps link.
+
+### 6. 📻 Authentic Tactical RF Audio DSP Filter
+* **Hardware Voiceband Simulation:**
+  * **4th-Order Bandpass Filter:** Strict 350 Hz to 3400 Hz voiceband cutoff mimicking military VHF/UHF transceivers.
+  * **Presence Peak:** +4 dB boost at 1800 Hz for high voice intelligibility in loud environments.
+  * **Saturation Waveshaper:** Nonlinear hyperbolic tangent distortion curve adding authentic analog RF transistor grit.
+
+---
+
 ## 🗂 Separate File Architecture
 
 DirectLink is cleanly structured into dedicated, modular files for each device:
@@ -55,21 +91,24 @@ DirectLink is cleanly structured into dedicated, modular files for each device:
 ```text
 directlink-walkie-talkie/
 ├── public/
-│   ├── phone.html          # 📱 Dedicated Mobile Walkie-Talkie UI
-│   ├── phone.js            # 📱 Phone client logic, touch PTT & mobile WebRTC
-│   ├── phone.css           # 📱 Handheld radio chassis & green LCD styles
+│   ├── index.html          # 🧭 Smart Device Auto-Router (Preserves hash & query params)
+│   │
+│   ├── phone.html          # 📱 Dedicated Mobile Handheld Transceiver UI
+│   ├── phone.js            # 📱 Phone client logic, rotary knobs, touch PTT, VOX, Replay
+│   ├── phone.css           # 📱 Rugged handheld radio chassis & fluorescent green LCD
 │   │
 │   ├── laptop.html         # 💻 Dedicated Laptop Command Base Station UI
-│   ├── laptop.js           # 💻 Laptop client logic, spacebar hotkey & audio DSP
-│   ├── laptop.css          # 💻 Military terminal console HUD styles
+│   ├── laptop.js           # 💻 Laptop client logic, dual oscilloscopes, VOX, Replay, DSP
+│   ├── laptop.css          # 💻 Station Master console HUD styles
 │   │
-│   ├── sound-effects.js    # 🔊 Procedural Web Audio API sound synthesizer
+│   ├── sound-effects.js    # 🔊 Procedural Web Audio API sound synthesizer & RF filter
 │   ├── app-debug.apk       # 📲 Direct Android APK download file
 │   ├── manifest.json       # 📱 PWA manifest configuration
-│   └── sw.js               # ⚡ Service Worker for offline caching
+│   └── sw.js               # ⚡ Service Worker v3 for offline caching
 │
 ├── android/                # 🤖 Native Android Studio Capacitor project
 ├── certs/                  # 🔒 Auto-generated TLS certificates & master bonded pair
+├── docs/                   # 📚 Technical documentation (Architecture & Protocol)
 ├── server.js               # 🌐 Node.js dual HTTP (:8080) & HTTPS (:8443) signaling hub
 ├── capacitor.config.json   # ⚙️ Android Capacitor bridge configuration
 ├── package.json            # 📦 Project dependencies & scripts
@@ -182,8 +221,10 @@ The compiled APK is output at:
 
 * **Exclusive 2-Device Master Channels:** Each intercom channel is strictly limited to 1 laptop and 1 phone. Third-party devices are rejected automatically.
 * **Cryptographic 6-Digit PINs:** Master channels are secured by session PINs and persistent pairing tokens.
-* **End-to-End Encrypted (DTLS-SRTP):** WebRTC voice streams travel directly between devices encrypted end-to-end. The signaling server never records, buffers, or inspects audio data.
+* **Zero-Knowledge AES-256-GCM E2EE:** Passphrase-derived WebCrypto encryption ensures voice data and beacon metadata are cryptographically secure.
+* **Hardware DTLS-SRTP Transport:** WebRTC voice streams travel directly peer-to-peer encrypted end-to-end. The signaling server never records, buffers, or inspects voice packets.
 * **Anti-Brute-Force Rate Limiting:** Automated guessing attempts trigger immediate IP-level cooldown locks.
+* **Half-Duplex Acoustic Ducking:** Automatic receiver muting during microphone activation eliminates feedback loops and acoustic howl.
 
 ---
 
@@ -201,6 +242,7 @@ node test-signaling.js
 - [x] Peer arrival state notifications
 - [x] Real-time Push-To-Talk state synchronization
 - [x] Dynamic conflict-free role adaptation
+- [x] SOS emergency beacon broadcast and relay
 - [x] Rejection of unauthorized PIN attempts
 - [x] Rejection of 3rd device intrusion attempts
 

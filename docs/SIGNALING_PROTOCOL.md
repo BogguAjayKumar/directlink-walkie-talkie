@@ -44,6 +44,11 @@ sequenceDiagram
     L->>S: {"type": "ptt-status", "state": "idle"}
     S->>P: {"type": "ptt-status", "state": "idle"}
     Note over P: Synthesizes NASA Roger Beep & squelch cutoff
+
+    Note over P,L: Emergency SOS Beacon Broadcast
+    P->>S: {"type": "sos-beacon", "active": true, "coords": {"latitude": 37.77, "longitude": -122.41}, "from": "Handheld Phone"}
+    S->>L: {"type": "sos-beacon", "active": true, "coords": {"latitude": 37.77, "longitude": -122.41}, "from": "Handheld Phone"}
+    Note over L: Synthesizes 960/770Hz warble siren & pops red emergency GPS modal
 ```
 
 ---
@@ -82,6 +87,22 @@ Notifies the peer whether the microphone audio gate is active or idle.
 {
   "type": "ptt-status",
   "state": "transmitting" // or "idle"
+}
+```
+
+#### Emergency SOS Beacon (`sos-beacon`)
+Transmits high-priority emergency alerts and GPS coordinates to the peer.
+```json
+{
+  "type": "sos-beacon",
+  "active": true,
+  "coords": {
+    "latitude": 37.774929,
+    "longitude": -122.419416,
+    "accuracy": 14.2
+  },
+  "from": "Handheld Phone",
+  "timestamp": 1700000000000
 }
 ```
 
@@ -124,6 +145,22 @@ Emitted when authentication fails, room is full, or malformed data is received.
 {
   "type": "error",
   "message": "Invalid PIN for this channel"
+}
+```
+
+#### Emergency SOS Beacon Relay (`sos-beacon`)
+Forwarded immediately to the other peer in the bonded channel when an emergency beacon is triggered or cancelled.
+```json
+{
+  "type": "sos-beacon",
+  "active": true,
+  "coords": {
+    "latitude": 37.774929,
+    "longitude": -122.419416,
+    "accuracy": 14.2
+  },
+  "from": "Handheld Phone",
+  "timestamp": 1700000000000
 }
 ```
 

@@ -8,75 +8,108 @@ DirectLink is engineered as a low-latency, zero-persistence, peer-to-peer audio 
 
 ```mermaid
 graph TD
-    subgraph "Laptop / Desktop"
-        UI_Laptop["Tactical Web UI / PWA"]
+    subgraph "Laptop Station Master (/laptop)"
+        UI_Laptop["Station Master HUD (laptop.html)"]
         Audio_In_L["Microphone Input"]
-        Audio_Proc_L["Web Audio API Graph (Gate + Analyser)"]
+        Audio_Proc_L["Web Audio API DSP Graph (GainNode + Analyser)"]
+        DSP_Filter_L["Tactical RF Biquad Filter + Waveshaper"]
+        VOX_L["VOX Voice Activation Detector (700ms Hangover)"]
+        Replay_L["MediaRecorder Rolling Replay Buffer"]
         SFX_L["Procedural Audio FX (Clicks / Roger Beeps)"]
-        PC_L["RTCPeerConnection (DTLS-SRTP)"]
+        PC_L["RTCPeerConnection (DTLS-SRTP Audio)"]
         WS_L["WebSocket Signaling Client"]
     end
 
-    subgraph "Signaling & Discovery Server"
+    subgraph "Signaling & Discovery Server (:8080 / :8443)"
+        Router["Smart Device Router (index.html)"]
         Node_Server["Node.js (Express + HTTPS)"]
         WSS["WebSocket Server (ws)"]
         Room_Mgr["Room & PIN Security Registry"]
+        SOS_Relay["Emergency Beacon Relay Engine"]
         QR_Gen["Dynamic QR Code Generator"]
         Tunnel_Mgr["WAN Reverse Proxy Tunnel (localtunnel)"]
     end
 
-    subgraph "Smartphone (Android / iOS)"
-        UI_Phone["Tactical PWA (Fullscreen Standalone)"]
+    subgraph "Smartphone Transceiver (/phone)"
+        UI_Phone["Handheld Radio Transceiver (phone.html)"]
         Audio_In_P["Microphone Input"]
-        Audio_Proc_P["Web Audio API Graph"]
+        Audio_Proc_P["Web Audio API Graph (GainNode + Analyser)"]
+        VOX_P["VOX Voice Activation Detector"]
+        Replay_P["MediaRecorder Rolling Replay Buffer"]
         SFX_P["Haptics + Procedural Audio FX"]
-        PC_P["RTCPeerConnection (DTLS-SRTP)"]
+        PC_P["RTCPeerConnection (DTLS-SRTP Audio)"]
         WS_P["WebSocket Signaling Client"]
+        BT_PTT["Web Bluetooth & MediaSession Headset Trigger"]
+        GPS["GPS Geolocation Engine"]
         WakeLock["Screen Wake Lock API"]
     end
 
+    %% Routing
+    Router -.->|Desktop UA| UI_Laptop
+    Router -.->|Mobile UA| UI_Phone
+
     %% Audio and Signaling Paths
-    WS_L <-->|WSS (SDP / ICE / PTT Sync)| WSS
-    WS_P <-->|WSS (SDP / ICE / PTT Sync)| WSS
+    WS_L <-->|WSS (SDP / ICE / PTT / SOS Beacon)| WSS
+    WS_P <-->|WSS (SDP / ICE / PTT / SOS Beacon)| WSS
     PC_L <===>|Direct E2EE Audio Stream (DTLS-SRTP)| PC_P
     
-    Audio_In_L --> Audio_Proc_L --> PC_L
+    Audio_In_L --> Audio_Proc_L --> DSP_Filter_L --> PC_L
     Audio_In_P --> Audio_Proc_P --> PC_P
 
+    Node_Server --> Router
     Node_Server --> WSS
     Node_Server --> Room_Mgr
+    Node_Server --> SOS_Relay
     Node_Server --> QR_Gen
     Node_Server --> Tunnel_Mgr
 ```
 
 ---
 
-## 🎙 Audio Engine Architecture (Procedural Synthesis)
+## 🎙 Audio Engine Architecture & DSP Processing
 
-DirectLink does **not** rely on static audio asset files (`.mp3` or `.wav`). All acoustic feedback cues are dynamically synthesized on the client device using the **Web Audio API**:
+DirectLink does **not** rely on static audio asset files (`.mp3` or `.wav`). All acoustic feedback cues and voice shaping are dynamically computed on the client device using the **Web Audio API**:
 
-```
+```text
 [Microphone MediaStream] 
         │
         ├──> [MediaStreamAudioSourceNode]
         │           │
-        │           ├──> [AudioWorklet / GainNode (Muted when idle)]
+        │           ├──> [GainNode (Muted when PTT is idle)]
         │           │           │
-        │           │           └──> [RTCPeerConnection Audio Track]  ──> (Remote Peer)
+        │           │           ├──> [BiquadFilterNode: Bandpass (350Hz - 3400Hz)] (Tactical RF)
+        │           │           │           │
+        │           │           │           ├──> [BiquadFilterNode: Peaking (+4dB @ 1800Hz)]
+        │           │           │           │           │
+        │           │           │           │           ├──> [WaveShaperNode (Soft Saturation Curve)]
+        │           │           │           │           │           │
+        │           │           │           │           │           └──> [RTCPeerConnection Track] ──> (Remote Peer)
+        │           │           │
+        │           │           └──> [MediaStreamDestination] (Clean PTT feed)
         │           │
-        │           └──> [AnalyserNode] ──> [HTML5 Canvas Oscilloscope Waveform]
+        │           └──> [Local AnalyserNode] ──> [HTML5 Canvas Oscilloscope + VOX RMS Speech Detection]
         │
-[AudioContext Destination]
+[Incoming Peer AudioStream]
+        │
+        ├──> [MediaRecorder Engine] ──> [30s Rolling Replay Buffer Blobs] ──> [Instant Replay Output]
+        │
+        ├──> [Remote AnalyserNode] ──> [Remote Oscilloscope & Audio VU Meter]
+        │
+        └──> [HTMLAudioElement / Destination] (Ducked to 0% during local TX to eliminate feedback)
+
+[AudioContext Procedural Synthesis]
         ▲
-        ├─── [Mic Click] : Short 1.2 kHz resonant impulse filter (< 15ms)
-        ├─── [Roger Beep]: Dual-tone sinusoidal generator (2.47 kHz & 1.2 kHz NASA tone)
-        └─── [Squelch Tail]: Bandpass-filtered Gaussian white noise burst (~60ms)
+        ├─── [Mic Click]       : Short 1.2 kHz resonant impulse filter (< 15ms)
+        ├─── [Roger Beep]      : Dual-tone sinusoidal generator (2.47 kHz & 1.2 kHz NASA Quindar tone)
+        ├─── [Squelch Tail]    : Bandpass-filtered Gaussian white noise burst (~60ms)
+        └─── [Emergency Siren] : Alternating dual-frequency warble generator (960 Hz / 770 Hz)
 ```
 
-### Benefits of Procedural Audio:
-1. **Zero Asset Latency:** Instant response with zero HTTP asset fetch overhead.
-2. **Deterministic Tone Frequency:** Precision replication of military and Motorola/NASA tactical radio telemetry tones.
-3. **Bandwidth Savings:** Zero static assets required over cellular networks.
+### Advanced Subsystems:
+1. **VOX Voice-Activated Transmission:** Continuously computes root-mean-square (RMS) energy levels on the `AnalyserNode`. Once energy exceeds the selected threshold (Low/Med/High), PTT automatically keys on. A 700ms decay hangover prevents speech clipping during natural sentence pauses.
+2. **Tactical Replay Buffer:** Captures incoming audio into timestamped binary WebM chunks. When the user taps "Play Last", an isolated HTMLAudioElement playback pipeline plays back the transmission.
+3. **Hardware Bluetooth PTT & Headset Integration:** Listens to external Bluetooth LE button characteristics (`navigator.bluetooth`) and intercepts `navigator.mediaSession` headset hardware action events (`play`, `pause`, `stop`, `nexttrack`).
+4. **SOS Emergency Beacon:** Generates a 960Hz/770Hz piercing siren while querying high-accuracy GPS coordinates (`navigator.geolocation`). Transmits an `{ type: "sos-beacon" }` emergency packet across the WebSocket signaling mesh to trigger a visual modal and audible alert on the linked device.
 
 ---
 
@@ -104,7 +137,9 @@ DirectLink operates across two primary network topologies:
 | :--- | :--- | :--- |
 | **Transport Encryption** | TLS 1.3 / HTTPS + WSS | Eavesdropping, Man-in-the-Middle (MITM) |
 | **Media Encryption** | WebRTC DTLS-SRTP | In-transit audio packet tampering or wiretapping |
+| **End-to-End Cryptography** | WebCrypto AES-256-GCM | Host or relay server eavesdropping |
 | **Access Control** | 6-digit channel PIN + Dynamic Room ID | Unauthorized channel joining |
 | **Room Concurrency** | Strict 2-Peer Maximum per Room | Eavesdropping via extra listeners |
 | **Anti-Brute-Force** | IP rate limiting (5 attempts/30s lockout) | Automated PIN enumeration |
 | **Audio Privacy** | Zero disk / memory audio persistence | Data retention, server-side audio leaks |
+| **Acoustic Ducking** | Half-Duplex Receiver Muting | High-gain acoustic feedback howl loops |
