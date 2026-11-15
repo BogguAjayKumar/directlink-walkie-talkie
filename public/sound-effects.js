@@ -9,6 +9,9 @@ class SoundEffects {
     this.enabled = true;
     this.volume = 0.6;
     this.rogerTone = 'motorola'; // 'motorola' | 'nasa' | 'chirp' | 'subtone' | 'squelch' | 'off'
+    this.sosOsc = null;
+    this.sosGain = null;
+    this.sosTimer = null;
   }
 
   init() {
@@ -241,6 +244,138 @@ class SoundEffects {
     } catch (e) {
       console.warn('Audio FX error:', e);
     }
+  }
+
+  // Emergency SOS Warble Siren
+  playSosSiren() {
+    this.stopSosSiren();
+    this.init();
+    try {
+      this.sosOsc = this.ctx.createOscillator();
+      this.sosGain = this.ctx.createGain();
+      this.sosOsc.type = 'sawtooth';
+
+      const now = this.ctx.currentTime;
+      this.sosGain.gain.setValueAtTime(this.volume * 0.45, now);
+
+      let cur = 960;
+      this.sosOsc.frequency.setValueAtTime(cur, now);
+
+      this.sosOsc.connect(this.sosGain);
+      this.sosGain.connect(this.ctx.destination);
+      this.sosOsc.start();
+
+      this.sosTimer = setInterval(() => {
+        if (!this.sosOsc || !this.ctx) return;
+        cur = (cur === 960) ? 770 : 960;
+        try {
+          this.sosOsc.frequency.setValueAtTime(cur, this.ctx.currentTime);
+        } catch (e) {}
+      }, 250);
+    } catch (e) {
+      console.warn('SOS Siren error:', e);
+    }
+  }
+
+  stopSosSiren() {
+    if (this.sosTimer) {
+      clearInterval(this.sosTimer);
+      this.sosTimer = null;
+    }
+    if (this.sosOsc) {
+      try {
+        const now = this.ctx ? this.ctx.currentTime : 0;
+        if (this.sosGain && now) {
+          this.sosGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        }
+        setTimeout(() => {
+          if (this.sosOsc) {
+            try { this.sosOsc.stop(); this.sosOsc.disconnect(); } catch (e) {}
+            this.sosOsc = null;
+          }
+        }, 60);
+      } catch (e) {
+        this.sosOsc = null;
+      }
+    }
+  }
+
+  // Replay Announcement Chirp
+  playReplayChirp() {
+    this.init();
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(1400, now + 0.06);
+      gain.gain.setValueAtTime(this.volume * 0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch (e) {}
+  }
+
+  // Tactical RF Radio Biquad Bandpass + Saturation Filter Chain
+  createTacticalRadioFilter(customCtx = null) {
+    const ctx = customCtx || this.ctx;
+    if (!ctx) return null;
+
+    const input = ctx.createGain();
+    const output = ctx.createGain();
+
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 350;
+    highpass.Q.value = 0.9;
+
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 3400;
+    lowpass.Q.value = 0.9;
+
+    const midBoost = ctx.createBiquadFilter();
+    midBoost.type = 'peaking';
+    midBoost.frequency.value = 1800;
+    midBoost.gain.value = 4.0;
+    midBoost.Q.value = 1.4;
+
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i / 128) - 1;
+      curve[i] = Math.tanh(x * 1.3);
+    }
+    shaper.curve = curve;
+    shaper.oversample = '2x';
+
+    const wetGain = ctx.createGain();
+    const dryGain = ctx.createGain();
+    wetGain.gain.value = 1.0;
+    dryGain.gain.value = 0.0;
+
+    input.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(midBoost);
+    midBoost.connect(shaper);
+    shaper.connect(wetGain);
+    wetGain.connect(output);
+
+    input.connect(dryGain);
+    dryGain.connect(output);
+
+    return {
+      input,
+      output,
+      setFilterActive(active) {
+        const now = ctx.currentTime;
+        wetGain.gain.setValueAtTime(active ? 1.0 : 0.0, now);
+        dryGain.gain.setValueAtTime(active ? 0.0 : 1.0, now);
+      }
+    };
   }
 }
 

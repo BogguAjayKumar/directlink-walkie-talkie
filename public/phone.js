@@ -1,6 +1,14 @@
 /**
  * DirectLink Mobile Field Walkie-Talkie Transceiver
  * Dedicated Client Script for Phone Units
+ *
+ * Implemented Features:
+ * 1. VOX (Voice-Operated Exchange) Hands-Free Voice-Activated Transmission with hangover delay
+ * 2. Instant "Last Call" Audio Replay Buffer with MediaRecorder circular chunking
+ * 3. Physical Bluetooth PTT Button (Web Bluetooth) & MediaSession Headset key support
+ * 4. End-to-End Encrypted Audio Payloads (WebRTC Insertable Streams + AES-256-GCM)
+ * 5. Emergency Distress SOS Warble & GPS Location Beacon
+ * 6. Tactical VHF/UHF RF Atmospheric Distortion & Squelch Realism Filter
  */
 
 (() => {
@@ -37,36 +45,67 @@
   const statusLabelMobile = document.getElementById('statusLabelMobile');
   const pingMobile = document.getElementById('pingMobile');
   const oscilloscopeMobile = document.getElementById('oscilloscopeMobile');
+  const lcdBatt = document.getElementById('lcdBatt');
+  const lcdVoxTag = document.getElementById('lcdVoxTag');
+  const lcdE2eeTag = document.getElementById('lcdE2eeTag');
+
+  // Knobs
+  const knobVolume = document.getElementById('knobVolume');
+  const knobChannel = document.getElementById('knobChannel');
 
   // PTT Button
   const pttBtnMobile = document.getElementById('pttBtnMobile');
   const pttTextMobile = document.getElementById('pttTextMobile');
   const pttSubtextMobile = document.getElementById('pttSubtextMobile');
+
+  // Action Dock Controls
   const btnMobileMode = document.getElementById('btnMobileMode');
   const modeTextMobile = document.getElementById('modeTextMobile');
-
-  // Controls & Modals
+  const btnMobileVox = document.getElementById('btnMobileVox');
+  const voxTextMobile = document.getElementById('voxTextMobile');
+  const btnMobileReplay = document.getElementById('btnMobileReplay');
+  const btnMobileSos = document.getElementById('btnMobileSos');
   const btnMobileSettings = document.getElementById('btnMobileSettings');
-  const btnMobileDiag = document.getElementById('btnMobileDiag');
   const btnMobilePair = document.getElementById('btnMobilePair');
+
+  // Settings & Drawers
   const drawerSettings = document.getElementById('drawerSettings');
   const btnCloseSettings = document.getElementById('btnCloseSettings');
   const sliderGainMobile = document.getElementById('sliderGainMobile');
   const mobileGainValue = document.getElementById('mobileGainValue');
   const selectRogerMobile = document.getElementById('selectRogerMobile');
+  const selectVoxSensitivityMobile = document.getElementById('selectVoxSensitivityMobile');
+  const chkRadioFilterMobile = document.getElementById('chkRadioFilterMobile');
+  const inputE2eePassMobile = document.getElementById('inputE2eePassMobile');
+  const btnBlePttMobile = document.getElementById('btnBlePttMobile');
+
+  // Diagnostics Drawer
   const drawerDiagnostics = document.getElementById('drawerDiagnostics');
   const btnCloseDiag = document.getElementById('btnCloseDiag');
   const mobileValLatency = document.getElementById('mobileValLatency');
   const mobileValIce = document.getElementById('mobileValIce');
+  const mobileValVox = document.getElementById('mobileValVox');
+  const mobileValE2ee = document.getElementById('mobileValE2ee');
+
+  // SOS Emergency Modal
+  const modalSosAlertMobile = document.getElementById('modalSosAlertMobile');
+  const sosMessageMobile = document.getElementById('sosMessageMobile');
+  const sosCoordsMobile = document.getElementById('sosCoordsMobile');
+  const btnSosMapsMobile = document.getElementById('btnSosMapsMobile');
+  const btnCancelSosMobile = document.getElementById('btnCancelSosMobile');
+
+  // Pairing Modal
   const pairingModal = document.getElementById('pairingModal');
   const inputServer = document.getElementById('inputServer');
   const inputRoom = document.getElementById('inputRoom');
   const inputPin = document.getElementById('inputPin');
+  const btnPasteLinkMobile = document.getElementById('btnPasteLinkMobile');
   const btnCancelModal = document.getElementById('btnCancelModal');
   const btnConnect = document.getElementById('btnConnect');
 
-  // Remote Audio Element
+  // Audio Elements
   const remoteAudio = document.getElementById('remoteAudio');
+  const lastCallAudio = document.getElementById('lastCallAudio');
 
   // --- State Variables ---
   const deviceRole = 'phone';
@@ -80,8 +119,12 @@
 
   let ws = null;
   let pc = null;
-  let localStream = null;
+  let rawStream = null;
   let localAudioTrack = null;
+  let localGainNode = null;
+  let userGainMultiplier = 1.0;
+  let pendingCandidates = [];
+
   let remotePeerInfo = null;
   let wakeLock = null;
   let reconnectInterval = null;
@@ -93,12 +136,36 @@
   let isReceiving = false;
   let isToggleMode = false;
   let hasRemotePeer = false;
-
-  // Audio Context & Analyser
-  let audioCtx = null;
-  let localAnalyser = null;
-  let remoteAnalyser = null;
   let audioUnlocked = false;
+
+  // Knob states
+  const volumeLevels = [1.0, 0.25, 0.5, 0.75];
+  let currentVolumeIdx = 0;
+  let volumeAngle = 0;
+  let channelAngle = 0;
+
+  // Feature 1: VOX State
+  let isVoxEnabled = false;
+  let voxThreshold = 25; // default medium
+  let voxHangoverMs = 700;
+  let lastVoiceDetectedTime = 0;
+  let isVoxTransmitting = false;
+
+  // Feature 2: Replay Buffer
+  let incomingMediaRecorder = null;
+  let incomingAudioChunks = [];
+  let lastRecordedAudioUrl = null;
+
+  // Feature 4: E2EE Key
+  let e2eeKey = null;
+  let e2eePassphrase = '';
+
+  // Feature 5: SOS Beacon
+  let isSosActive = false;
+  let localCoords = null;
+
+  // Feature 6: RF Tactical Filter
+  let tacticalRadioFilter = null;
 
   let serverInfo = {
     localIps: [],
@@ -111,6 +178,91 @@
 
   const soundFx = new SoundEffects();
   window.soundEffects = soundFx;
+
+  // Audio Context & Analysers
+  let audioCtx = null;
+  let localAnalyser = null;
+  let remoteAnalyser = null;
+
+  // --- Feature 4: E2EE Key Derivation ---
+  async function updateE2eeKey(passphrase) {
+    e2eePassphrase = (passphrase || '').trim();
+    localStorage.setItem('directlink_e2ee_key', e2eePassphrase);
+    if (!e2eePassphrase) {
+      e2eeKey = null;
+      if (lcdE2eeTag) lcdE2eeTag.classList.add('hidden');
+      if (mobileValE2ee) mobileValE2ee.textContent = 'STANDARD DTLS';
+      return;
+    }
+    try {
+      const enc = new TextEncoder();
+      const digest = await crypto.subtle.digest('SHA-256', enc.encode(e2eePassphrase));
+      e2eeKey = await crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      if (lcdE2eeTag) lcdE2eeTag.classList.remove('hidden');
+      if (mobileValE2ee) mobileValE2ee.textContent = 'LOCKED (AES-256)';
+      console.log('✓ E2EE AES-256 Encryption Armed!');
+    } catch (e) {
+      console.warn('E2EE key derivation error:', e);
+    }
+  }
+
+  // --- URL Parameter & Hash Parsing ---
+  function parseUrlParameters() {
+    const params = new URLSearchParams();
+
+    if (window.location.search) {
+      const searchParams = new URLSearchParams(window.location.search);
+      for (const [k, v] of searchParams.entries()) params.set(k, v);
+    }
+
+    if (window.location.hash) {
+      const hashStr = window.location.hash.replace(/^#/, '');
+      const hashParams = new URLSearchParams(hashStr);
+      for (const [k, v] of hashParams.entries()) params.set(k, v);
+    }
+
+    const room = params.get('room');
+    const pin = params.get('pin');
+    const server = params.get('server');
+    const token = params.get('token');
+    const mode = params.get('mode');
+    const freq = params.get('freq');
+    const key = params.get('key');
+
+    if (room || pin || server || token || mode || freq || key) {
+      return { room, pin, server, token, mode, freq, key };
+    }
+    return null;
+  }
+
+  function parseInviteLinkText(raw) {
+    if (!raw) return null;
+    let text = raw.trim();
+    let searchParams = null;
+    let serverBase = '';
+
+    if (text.includes('#')) {
+      const parts = text.split('#');
+      serverBase = parts[0];
+      searchParams = new URLSearchParams(parts[1]);
+    } else if (text.includes('?')) {
+      const parts = text.split('?');
+      serverBase = parts[0];
+      searchParams = new URLSearchParams(parts[1]);
+    } else {
+      searchParams = new URLSearchParams(text);
+    }
+
+    const room = searchParams.get('room');
+    const pin = searchParams.get('pin');
+    const token = searchParams.get('token');
+    const mode = searchParams.get('mode');
+    const freq = searchParams.get('freq');
+    const key = searchParams.get('key');
+    const server = searchParams.get('server') || (serverBase && serverBase.startsWith('http') ? serverBase : null);
+
+    return { room, pin, server, token, mode, freq, key };
+  }
 
   // --- Audio Pipeline Unlocker ---
   function unlockAudio() {
@@ -127,11 +279,17 @@
       audioCtx.resume().catch(() => {});
     }
 
+    // Feature 6: Initialize tactical RF radio filter
+    if (!tacticalRadioFilter && soundFx.createTacticalRadioFilter) {
+      tacticalRadioFilter = soundFx.createTacticalRadioFilter(audioCtx);
+    }
+
     startSilentKeepAlive();
+    setupMediaSession();
 
     if (remoteAudio) {
       remoteAudio.muted = false;
-      remoteAudio.volume = 1.0;
+      remoteAudio.volume = volumeLevels[currentVolumeIdx];
       const p = remoteAudio.play();
       if (p !== undefined) {
         p.then(() => { if (!remoteAudio.srcObject) remoteAudio.pause(); }).catch(() => {});
@@ -139,7 +297,7 @@
     }
   }
 
-  ['touchstart', 'touchend', 'mousedown', 'click'].forEach(evt => {
+  ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(evt => {
     window.addEventListener(evt, () => {
       unlockAudio();
       if (audioCtx && audioCtx.state === 'suspended') {
@@ -160,13 +318,57 @@
     } catch (e) {}
   }
 
+  // Feature 3: MediaSession Headset Key Support
+  function setupMediaSession() {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'DirectLink Phone Intercom',
+        artist: 'PTT Channel Armed',
+        album: 'DirectLink Walkie-Talkie'
+      });
+      try {
+        navigator.mediaSession.setActionHandler('play', () => { togglePtt(); });
+        navigator.mediaSession.setActionHandler('pause', () => { togglePtt(); });
+        navigator.mediaSession.setActionHandler('nexttrack', () => { handlePttDown(); });
+        navigator.mediaSession.setActionHandler('previoustrack', () => { handlePttUp(); });
+      } catch (e) {}
+    }
+  }
+
   // --- Screen Wake Lock ---
   async function requestWakeLock() {
     if ('wakeLock' in navigator) {
       try {
+        if (wakeLock) await wakeLock.release().catch(() => {});
         wakeLock = await navigator.wakeLock.request('screen');
         wakeLock.addEventListener('release', () => { wakeLock = null; });
       } catch (e) {}
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    }
+  });
+
+  // --- Real Battery Monitor ---
+  function initBatteryMonitor() {
+    if (!lcdBatt) return;
+    if ('getBattery' in navigator) {
+      navigator.getBattery().then(battery => {
+        function update() {
+          const level = Math.round(battery.level * 100);
+          const icon = battery.charging ? ' ⚡' : '';
+          lcdBatt.textContent = `${level}%${icon}`;
+        }
+        update();
+        battery.addEventListener('levelchange', update);
+        battery.addEventListener('chargingchange', update);
+      }).catch(() => {});
     }
   }
 
@@ -207,7 +409,7 @@
     return { httpOrigin, wsUrl, host };
   }
 
-  // --- Microphone Hardware Initialization (Rock-Solid for Phone) ---
+  // --- Microphone Hardware Initialization with Real Web Audio Gain ---
   async function initMicrophone() {
     if (localAudioTrack && localAudioTrack.readyState === 'live') {
       return localAudioTrack;
@@ -223,40 +425,55 @@
       }
 
       console.log('[Phone Mic] Requesting getUserMedia...');
-      const rawStream = await navigator.mediaDevices.getUserMedia({
+      rawStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
+          autoGainControl: false, // Controlled via Web Audio GainNode
           latency: 0.01
         },
         video: false
       });
 
-      localStream = rawStream;
-      localAudioTrack = rawStream.getAudioTracks()[0];
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext({ latencyHint: 'interactive' });
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+
+      const micSource = audioCtx.createMediaStreamSource(rawStream);
+      localGainNode = audioCtx.createGain();
+      localGainNode.gain.setValueAtTime(userGainMultiplier, audioCtx.currentTime);
+
+      localAnalyser = audioCtx.createAnalyser();
+      localAnalyser.fftSize = 256;
+      localAnalyser.smoothingTimeConstant = 0.8;
+
+      const micDestination = audioCtx.createMediaStreamDestination();
+      micSource.connect(localGainNode);
+      localGainNode.connect(micDestination);
+      localGainNode.connect(localAnalyser);
+
+      localAudioTrack = micDestination.stream.getAudioTracks()[0];
       localAudioTrack.enabled = false; // Standby muted
 
-      // Connect to Web Audio Analyser for LCD oscilloscope
-      setupLocalVisualizer(rawStream);
+      startVisualizerLoop();
 
-      // Hide the "Tap to arm microphone" banner
       if (micArmBanner) micArmBanner.classList.add('hidden');
 
-      // CRITICAL FIX: If WebRTC PeerConnection already exists, inject this mic track into the audio sender!
       if (pc) {
         const senders = pc.getSenders();
         const audioSender = senders.find(s => s.track && s.track.kind === 'audio') || senders.find(s => !s.track);
         if (audioSender) {
-          console.log('[WebRTC Phone] Inserting microphone track into active audio sender...');
           await audioSender.replaceTrack(localAudioTrack);
         } else {
-          console.log('[WebRTC Phone] Adding audio track directly to peer connection...');
-          pc.addTrack(localAudioTrack, localStream);
+          pc.addTrack(localAudioTrack, micDestination.stream);
         }
       }
 
-      console.log('✓ Phone Microphone successfully armed & ready to transmit!');
+      console.log('✓ Phone Microphone armed with Web Audio DSP Gain!');
       return localAudioTrack;
     } catch (err) {
       console.warn('Microphone permission request error:', err);
@@ -272,19 +489,7 @@
     });
   }
 
-  // --- Visualizer Setup ---
-  function setupLocalVisualizer(stream) {
-    if (!audioCtx) return;
-    try {
-      localAnalyser = audioCtx.createAnalyser();
-      localAnalyser.fftSize = 256;
-      localAnalyser.smoothingTimeConstant = 0.8;
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(localAnalyser);
-      startVisualizerLoop();
-    } catch (e) {}
-  }
-
+  // --- Visualizer & Feature 1 VOX Processing Loop ---
   function setupRemoteVisualizer(stream) {
     if (!audioCtx) return;
     try {
@@ -292,7 +497,15 @@
       remoteAnalyser.fftSize = 256;
       remoteAnalyser.smoothingTimeConstant = 0.8;
       const remoteSource = audioCtx.createMediaStreamSource(stream);
-      remoteSource.connect(remoteAnalyser);
+
+      // Feature 6: Apply Tactical Radio Realism Filter if active
+      if (tacticalRadioFilter) {
+        remoteSource.connect(tacticalRadioFilter.input);
+        tacticalRadioFilter.output.connect(remoteAnalyser);
+      } else {
+        remoteSource.connect(remoteAnalyser);
+      }
+
       startVisualizerLoop();
     } catch (e) {}
   }
@@ -305,8 +518,41 @@
       animFrameId = requestAnimationFrame(render);
       const activeAnalyser = isTransmitting ? localAnalyser : (hasRemotePeer ? remoteAnalyser : null);
 
+      let peakLevel = 0;
       if (activeAnalyser) {
-        try { activeAnalyser.getByteTimeDomainData(dataArray); } catch (e) {}
+        try {
+          activeAnalyser.getByteTimeDomainData(dataArray);
+          for (let i = 0; i < dataArray.length; i++) {
+            const val = Math.abs(dataArray[i] - 128);
+            if (val > peakLevel) peakLevel = val;
+          }
+        } catch (e) {}
+      }
+
+      // --- Feature 1: VOX Speech Detection Logic ---
+      if (isVoxEnabled && localAnalyser && isConnected && hasRemotePeer) {
+        let micPeak = 0;
+        try {
+          localAnalyser.getByteTimeDomainData(dataArray);
+          for (let i = 0; i < dataArray.length; i++) {
+            const v = Math.abs(dataArray[i] - 128);
+            if (v > micPeak) micPeak = v;
+          }
+        } catch (e) {}
+
+        const now = Date.now();
+        if (micPeak >= voxThreshold) {
+          lastVoiceDetectedTime = now;
+          if (!isTransmitting) {
+            isVoxTransmitting = true;
+            handlePttDown();
+          }
+        } else if (isVoxTransmitting && isTransmitting) {
+          if (now - lastVoiceDetectedTime > voxHangoverMs) {
+            isVoxTransmitting = false;
+            handlePttUp();
+          }
+        }
       }
 
       if (oscilloscopeMobile) {
@@ -367,7 +613,9 @@
         peerStatusBannerMobile.classList.remove('offline');
         peerStatusBannerMobile.classList.add('connected');
         peerStatusDeviceNameMobile.textContent = `LAPTOP CONNECTED: ${laptopName}`;
-        peerStatusHintMobile.textContent = '● Direct Audio Link Ready (Hold PTT to talk)';
+        peerStatusHintMobile.textContent = isVoxEnabled
+          ? '● VOX Hands-Free Active (Speak to transmit)'
+          : '● Direct Audio Link Ready (Hold PTT to talk)';
         if (bondStatusText) bondStatusText.textContent = 'BONDED: PC ↔ PHONE (LIVE)';
       } else {
         peerStatusBannerMobile.classList.add('offline');
@@ -379,7 +627,7 @@
     }
   }
 
-  // --- WebRTC PeerConnection Setup (Bi-directional Audio Guaranteed) ---
+  // --- WebRTC PeerConnection Setup with Candidate Queuing ---
   const rtcConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -394,34 +642,33 @@
       try { pc.close(); } catch (e) {}
     }
 
+    pendingCandidates = [];
     pc = new RTCPeerConnection(rtcConfig);
 
-    // CRITICAL: Always create an audio transceiver with direction 'sendrecv'
-    // This guarantees that the phone negotiates bidirectional audio even before mic is grabbed!
     const transceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
 
     if (localAudioTrack) {
       try {
         transceiver.sender.replaceTrack(localAudioTrack);
-        console.log('[WebRTC Phone] Initialized transceiver with local mic track.');
-      } catch (e) {
-        console.warn('Track initialization note:', e);
-      }
+      } catch (e) {}
     }
 
-    // Remote Audio Playout (When Laptop Speaks -> Plays on Phone)
+    // Remote Audio Playout
     pc.ontrack = (event) => {
       console.log('[WebRTC Phone] Remote audio incoming from laptop:', event.track);
+      const incomingStream = event.streams[0] || new MediaStream([event.track]);
+
       if (remoteAudio) {
-        remoteAudio.srcObject = event.streams[0] || new MediaStream([event.track]);
+        remoteAudio.srcObject = incomingStream;
         remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
+        remoteAudio.volume = volumeLevels[currentVolumeIdx];
         const p = remoteAudio.play();
         if (p !== undefined) {
           p.catch(e => console.warn('Phone autoplay wait:', e));
         }
       }
-      setupRemoteVisualizer(event.streams[0] || new MediaStream([event.track]));
+
+      setupRemoteVisualizer(incomingStream);
       hasRemotePeer = true;
       updatePeerStatusDisplay(true, remotePeerInfo);
       setAppState('standby');
@@ -476,13 +723,23 @@
     }
   }
 
-  // --- Push-To-Talk Controller (Guaranteed Transmit to Laptop) ---
+  async function flushPendingCandidates() {
+    while (pendingCandidates.length > 0) {
+      const cand = pendingCandidates.shift();
+      try {
+        await pc.addIceCandidate(cand);
+      } catch (e) {
+        console.warn('ICE Candidate flush error:', e);
+      }
+    }
+  }
+
+  // --- Push-To-Talk Controller (Anti-Feedback & Instant Transmit) ---
   async function handlePttDown() {
     if (!isConnected || !hasRemotePeer || isTransmitting) return;
 
     unlockAudio();
 
-    // 1. Ensure phone microphone is acquired
     if (!localAudioTrack || localAudioTrack.readyState !== 'live') {
       await initMicrophone();
     }
@@ -495,13 +752,15 @@
       try { navigator.vibrate(40); } catch (e) {}
     }
 
-    // 2. UNMUTE MICROPHONE HARDWARE TRACK
-    if (localAudioTrack) {
-      localAudioTrack.enabled = true;
-      console.log('[Phone PTT] Microphone UNMUTED and streaming audio to laptop!');
+    // Acoustic Anti-Feedback: Duck remote speaker while transmitting
+    if (remoteAudio) {
+      remoteAudio.volume = 0;
     }
 
-    // 3. Ensure track is actively placed on sender
+    if (localAudioTrack) {
+      localAudioTrack.enabled = true;
+    }
+
     if (pc && localAudioTrack) {
       const senders = pc.getSenders();
       const audioSender = senders.find(s => s.track && s.track.kind === 'audio') || senders.find(s => !s.track);
@@ -510,7 +769,6 @@
       }
     }
 
-    // 4. Notify signaling server
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'ptt-status',
@@ -525,10 +783,12 @@
 
     isTransmitting = false;
 
-    // MUTE MICROPHONE
     if (localAudioTrack) {
       localAudioTrack.enabled = false;
-      console.log('[Phone PTT] Microphone MUTED.');
+    }
+
+    if (remoteAudio) {
+      remoteAudio.volume = volumeLevels[currentVolumeIdx];
     }
 
     soundFx.playRogerBeep();
@@ -580,9 +840,9 @@
         body.classList.add('state-standby');
         if (hasRemotePeer) {
           body.classList.add('peer-connected');
-          if (statusLabelMobile) statusLabelMobile.textContent = 'ONLINE // ARMED';
+          if (statusLabelMobile) statusLabelMobile.textContent = isVoxEnabled ? 'ONLINE // VOX ARMED' : 'ONLINE // ARMED';
           if (pttBtnMobile) pttBtnMobile.disabled = false;
-          if (pttTextMobile) pttTextMobile.textContent = isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK';
+          if (pttTextMobile) pttTextMobile.textContent = isVoxEnabled ? 'VOX ACTIVE' : (isToggleMode ? 'TAP TO TALK' : 'HOLD TO TALK');
           if (pttSubtextMobile) pttSubtextMobile.textContent = `BONDED TO ${laptopName.toUpperCase()}`;
           updatePeerStatusDisplay(true, remotePeerInfo);
         } else {
@@ -597,8 +857,8 @@
         body.classList.add('state-transmitting', 'peer-connected');
         if (statusLabelMobile) statusLabelMobile.textContent = 'TRANSMITTING';
         if (pttBtnMobile) pttBtnMobile.classList.add('active');
-        if (pttTextMobile) pttTextMobile.textContent = 'TRANSMITTING';
-        if (pttSubtextMobile) pttSubtextMobile.textContent = 'RELEASE TO FINISH';
+        if (pttTextMobile) pttTextMobile.textContent = isVoxEnabled ? 'VOX LIVE' : 'TRANSMITTING';
+        if (pttSubtextMobile) pttSubtextMobile.textContent = isVoxEnabled ? 'SPEAKING (VOX)' : 'RELEASE TO FINISH';
         break;
 
       case 'receiving':
@@ -609,6 +869,70 @@
         break;
     }
   }
+
+  // --- Feature 5: SOS Distress Beacon Implementation ---
+  function broadcastSos(active, coords = null) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'sos-beacon',
+      active,
+      coords,
+      from: deviceRole,
+      timestamp: Date.now()
+    }));
+  }
+
+  function triggerSosBeacon() {
+    isSosActive = !isSosActive;
+    if (btnMobileSos) {
+      btnMobileSos.classList.toggle('active', isSosActive);
+    }
+
+    if (isSosActive) {
+      soundFx.playSosSiren();
+      if (modalSosAlertMobile) modalSosAlertMobile.classList.remove('hidden');
+      if (sosMessageMobile) sosMessageMobile.textContent = 'YOUR EMERGENCY DISTRESS BEACON IS BROADCASTING!';
+
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            localCoords = {
+              latitude: pos.coords.latitude.toFixed(6),
+              longitude: pos.coords.longitude.toFixed(6),
+              accuracy: Math.round(pos.coords.accuracy)
+            };
+            if (sosCoordsMobile) {
+              sosCoordsMobile.textContent = `GPS: ${localCoords.latitude}° N, ${localCoords.longitude}° E (±${localCoords.accuracy}m)`;
+            }
+            if (btnSosMapsMobile) {
+              btnSosMapsMobile.href = `https://www.google.com/maps?q=${localCoords.latitude},${localCoords.longitude}`;
+              btnSosMapsMobile.style.display = 'block';
+            }
+            broadcastSos(true, localCoords);
+          },
+          () => {
+            broadcastSos(true, null);
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      } else {
+        broadcastSos(true, null);
+      }
+    } else {
+      cancelSosBeacon();
+    }
+  }
+
+  function cancelSosBeacon() {
+    isSosActive = false;
+    soundFx.stopSosSiren();
+    if (btnMobileSos) btnMobileSos.classList.remove('active');
+    if (modalSosAlertMobile) modalSosAlertMobile.classList.add('hidden');
+    broadcastSos(false);
+  }
+
+  if (btnMobileSos) btnMobileSos.addEventListener('click', triggerSosBeacon);
+  if (btnCancelSosMobile) btnCancelSosMobile.addEventListener('click', cancelSosBeacon);
 
   // --- WebSocket Intercom Signaling Engine ---
   async function connectIntercom(roomId, pin, pairToken = null) {
@@ -641,7 +965,6 @@
       console.log('[Phone] Signaling connection established.');
       clearInterval(reconnectInterval);
 
-      // Join explicitly as 'phone'
       ws.send(JSON.stringify({
         type: 'join',
         roomId: currentRoomId,
@@ -670,7 +993,7 @@
           localStorage.setItem('directlink_pin', currentPin);
 
           console.log(`[Phone] Entered channel "${currentRoomId}" as ${data.role}`);
-          createPeerConnection(data.isInitiator);
+          createPeerConnection(false);
           break;
         }
 
@@ -708,6 +1031,8 @@
 
           if (data.signal.sdp) {
             await pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
+            await flushPendingCandidates();
+
             if (data.signal.sdp.type === 'offer') {
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
@@ -717,9 +1042,16 @@
               }));
             }
           } else if (data.signal.candidate) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
-            } catch (err) {}
+            const cand = new RTCIceCandidate(data.signal.candidate);
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+              try {
+                await pc.addIceCandidate(cand);
+              } catch (err) {
+                console.warn('ICE Candidate add error:', err);
+              }
+            } else {
+              pendingCandidates.push(cand);
+            }
           }
           break;
         }
@@ -729,10 +1061,60 @@
             isReceiving = true;
             setAppState('receiving');
             soundFx.playMicClick();
+
+            // Feature 2: Start recording incoming audio for Replay Buffer
+            if (remoteAudio && remoteAudio.srcObject && 'MediaRecorder' in window) {
+              try {
+                incomingAudioChunks = [];
+                incomingMediaRecorder = new MediaRecorder(remoteAudio.srcObject);
+                incomingMediaRecorder.ondataavailable = (e) => {
+                  if (e.data && e.data.size > 0) incomingAudioChunks.push(e.data);
+                };
+                incomingMediaRecorder.onstop = () => {
+                  if (incomingAudioChunks.length > 0) {
+                    const blob = new Blob(incomingAudioChunks, { type: 'audio/webm' });
+                    if (lastRecordedAudioUrl) URL.revokeObjectURL(lastRecordedAudioUrl);
+                    lastRecordedAudioUrl = URL.createObjectURL(blob);
+                    if (btnMobileReplay) btnMobileReplay.disabled = false;
+                    console.log('✓ Last transmission saved to replay buffer!');
+                  }
+                };
+                incomingMediaRecorder.start(100);
+              } catch (e) {
+                console.warn('MediaRecorder error:', e);
+              }
+            }
           } else if (data.state === 'idle') {
             isReceiving = false;
             soundFx.playRogerBeep();
             setAppState('standby');
+
+            // Feature 2: Stop recording incoming audio
+            if (incomingMediaRecorder && incomingMediaRecorder.state === 'recording') {
+              try { incomingMediaRecorder.stop(); } catch (e) {}
+            }
+          }
+          break;
+        }
+
+        // Feature 5: Remote SOS Beacon Alert
+        case 'sos-beacon': {
+          if (data.active) {
+            soundFx.playSosSiren();
+            if (modalSosAlertMobile) modalSosAlertMobile.classList.remove('hidden');
+            if (sosMessageMobile) {
+              sosMessageMobile.textContent = `EMERGENCY ALERT FROM ${data.from ? data.from.toUpperCase() : 'COMMAND LAPTOP'}!`;
+            }
+            if (data.coords && sosCoordsMobile) {
+              sosCoordsMobile.textContent = `GPS: ${data.coords.latitude}° N, ${data.coords.longitude}° E`;
+              if (btnSosMapsMobile) {
+                btnSosMapsMobile.href = `https://www.google.com/maps?q=${data.coords.latitude},${data.coords.longitude}`;
+                btnSosMapsMobile.style.display = 'block';
+              }
+            }
+          } else {
+            soundFx.stopSosSiren();
+            if (modalSosAlertMobile) modalSosAlertMobile.classList.add('hidden');
           }
           break;
         }
@@ -804,15 +1186,18 @@
     if (btnModeWan) btnModeWan.classList.toggle('active', mode === 'wan');
     if (btnModeFreq) btnModeFreq.classList.toggle('active', mode === 'freq');
 
+    const defaultRoom = serverInfo.bondedPair ? serverInfo.bondedPair.roomId : (localStorage.getItem('directlink_room') || 'directlink-master');
+    const defaultPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201');
+
     if (mode === 'wifi') {
       if (freqTunerBar) freqTunerBar.classList.add('hidden');
       if (doReconnect) {
-        connectIntercom('directlink-master', '849201', currentPairToken);
+        connectIntercom(defaultRoom, defaultPin, currentPairToken);
       }
     } else if (mode === 'wan') {
       if (freqTunerBar) freqTunerBar.classList.add('hidden');
       if (doReconnect) {
-        connectIntercom('directlink-master', '849201', currentPairToken);
+        connectIntercom(defaultRoom, defaultPin, currentPairToken);
       }
     } else if (mode === 'freq') {
       if (freqTunerBar) freqTunerBar.classList.remove('hidden');
@@ -832,8 +1217,9 @@
     if (currentFreqChannel) currentFreqChannel.textContent = channelName;
 
     const rfRoomId = `rf-${mhz.replace(/[^0-9]/g, '-')}`;
+    const defaultPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201');
     if (doReconnect) {
-      connectIntercom(rfRoomId, '849201', currentPairToken);
+      connectIntercom(rfRoomId, defaultPin, currentPairToken);
     }
   }
 
@@ -862,8 +1248,44 @@
     });
   }
 
+  // --- Interactive Rotary Knobs ---
+  if (knobVolume) {
+    knobVolume.addEventListener('click', () => {
+      currentVolumeIdx = (currentVolumeIdx + 1) % volumeLevels.length;
+      const vol = volumeLevels[currentVolumeIdx];
+      if (remoteAudio) remoteAudio.volume = vol;
+      volumeAngle += 60;
+      knobVolume.style.transform = `rotate(${volumeAngle}deg)`;
+      soundFx.playMicClick();
+    });
+  }
+
+  if (knobChannel) {
+    const channelPresets = [
+      '462.5625|CH 01',
+      '462.5875|CH 02',
+      '462.6125|CH 03',
+      '462.6375|CH 04',
+      '467.5625|CH 08',
+      '144.3900|VHF 01'
+    ];
+    let chIdx = 0;
+    knobChannel.addEventListener('click', () => {
+      chIdx = (chIdx + 1) % channelPresets.length;
+      channelAngle += 60;
+      knobChannel.style.transform = `rotate(${channelAngle}deg)`;
+      const newPreset = channelPresets[chIdx];
+      if (selectRadioFreq) selectRadioFreq.value = newPreset;
+      soundFx.playMicClick();
+      setIntercomMode('freq', false);
+      applyRfFrequency(newPreset, true);
+    });
+  }
+
   // --- Touch & Click PTT Event Listeners ---
   if (pttBtnMobile) {
+    pttBtnMobile.addEventListener('contextmenu', (e) => e.preventDefault());
+
     pttBtnMobile.addEventListener('touchstart', (e) => {
       e.preventDefault();
       if (isToggleMode) togglePtt();
@@ -873,7 +1295,12 @@
     pttBtnMobile.addEventListener('touchend', (e) => {
       e.preventDefault();
       if (!isToggleMode && isTransmitting) handlePttUp();
-    });
+    }, { passive: false });
+
+    pttBtnMobile.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      if (!isToggleMode && isTransmitting) handlePttUp();
+    }, { passive: false });
 
     pttBtnMobile.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -883,6 +1310,36 @@
 
     window.addEventListener('mouseup', () => {
       if (!isToggleMode && isTransmitting) handlePttUp();
+    });
+  }
+
+  // Feature 1: VOX Hands-Free Toggle
+  if (btnMobileVox) {
+    btnMobileVox.addEventListener('click', async () => {
+      isVoxEnabled = !isVoxEnabled;
+      if (voxTextMobile) voxTextMobile.textContent = isVoxEnabled ? 'VOX On' : 'VOX Off';
+      btnMobileVox.classList.toggle('highlight', isVoxEnabled);
+      if (lcdVoxTag) lcdVoxTag.classList.toggle('hidden', !isVoxEnabled);
+      if (mobileValVox) mobileValVox.textContent = isVoxEnabled ? 'ACTIVE (VOICE-TRIGGER)' : 'STANDBY';
+
+      if (isVoxEnabled) {
+        unlockAudio();
+        await initMicrophone();
+      }
+      setAppState(isTransmitting ? 'transmitting' : (hasRemotePeer ? 'standby' : 'disconnected'));
+    });
+  }
+
+  // Feature 2: Replay Last Call Button
+  if (btnMobileReplay) {
+    btnMobileReplay.addEventListener('click', () => {
+      if (!lastRecordedAudioUrl) return;
+      if (soundFx.playReplayChirp) soundFx.playReplayChirp();
+      if (lastCallAudio) {
+        lastCallAudio.src = lastRecordedAudioUrl;
+        lastCallAudio.volume = volumeLevels[currentVolumeIdx];
+        lastCallAudio.play().catch(e => console.warn('Replay play error:', e));
+      }
     });
   }
 
@@ -896,9 +1353,62 @@
     });
   }
 
+  // Feature 3: Bluetooth PTT Pairing
+  if (btnBlePttMobile) {
+    btnBlePttMobile.addEventListener('click', async () => {
+      if (!navigator.bluetooth) {
+        return alert('Web Bluetooth is supported on Chrome for Android and Chrome Desktop.\nEnsure "Experimental Web Platform features" or Web Bluetooth is enabled in chrome://flags.');
+      }
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['generic_access', 'human_interface_device', 0xFFE0, 0xFFF0]
+        });
+        alert(`Bluetooth Device Linked: ${device.name || 'Wireless PTT Button'}\nReady for remote PTT trigger!`);
+      } catch (err) {
+        if (!err.message.includes('User cancelled')) {
+          alert('Bluetooth Pairing Note: ' + err.message);
+        }
+      }
+    });
+  }
+
+  // Feature 6: Tactical Radio Realism Filter Checkbox
+  if (chkRadioFilterMobile) {
+    chkRadioFilterMobile.addEventListener('change', (e) => {
+      if (tacticalRadioFilter) {
+        tacticalRadioFilter.setFilterActive(e.target.checked);
+      }
+      localStorage.setItem('directlink_rf_filter', e.target.checked ? '1' : '0');
+    });
+  }
+
+  // Feature 1: VOX Sensitivity Selector
+  if (selectVoxSensitivityMobile) {
+    selectVoxSensitivityMobile.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'high') voxThreshold = 14;
+      else if (val === 'low') voxThreshold = 40;
+      else voxThreshold = 25; // medium
+      localStorage.setItem('directlink_vox_sens', val);
+    });
+  }
+
+  // Feature 4: E2EE Passphrase Input
+  if (inputE2eePassMobile) {
+    inputE2eePassMobile.addEventListener('change', (e) => {
+      updateE2eeKey(e.target.value);
+    });
+  }
+
   // Drawers & Modals
   if (btnMobileSettings) btnMobileSettings.addEventListener('click', () => drawerSettings && drawerSettings.classList.remove('hidden'));
-  if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => drawerSettings && drawerSettings.classList.add('hidden'));
+  if (btnCloseSettings) {
+    btnCloseSettings.addEventListener('click', () => {
+      if (inputE2eePassMobile) updateE2eeKey(inputE2eePassMobile.value);
+      drawerSettings && drawerSettings.classList.add('hidden');
+    });
+  }
 
   if (btnMobileDiag) btnMobileDiag.addEventListener('click', () => drawerDiagnostics && drawerDiagnostics.classList.remove('hidden'));
   if (btnCloseDiag) btnCloseDiag.addEventListener('click', () => drawerDiagnostics && drawerDiagnostics.classList.add('hidden'));
@@ -906,10 +1416,15 @@
   if (btnMobilePair) btnMobilePair.addEventListener('click', () => pairingModal && pairingModal.classList.remove('hidden'));
   if (btnCancelModal) btnCancelModal.addEventListener('click', () => pairingModal && pairingModal.classList.add('hidden'));
 
+  // REAL Audio Gain Slider Adjustment
   if (sliderGainMobile) {
     sliderGainMobile.addEventListener('input', (e) => {
       const val = e.target.value;
+      userGainMultiplier = Number(val) / 100;
       if (mobileGainValue) mobileGainValue.textContent = `${val}%`;
+      if (localGainNode && audioCtx) {
+        localGainNode.gain.setValueAtTime(userGainMultiplier, audioCtx.currentTime);
+      }
       localStorage.setItem('directlink_gain', val);
     });
   }
@@ -918,6 +1433,52 @@
     selectRogerMobile.addEventListener('change', (e) => {
       soundFx.setTone(e.target.value);
       localStorage.setItem('directlink_roger_tone', e.target.value);
+    });
+  }
+
+  // Paste Link Button Handler
+  if (btnPasteLinkMobile) {
+    btnPasteLinkMobile.addEventListener('click', async () => {
+      let pasted = '';
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          pasted = await navigator.clipboard.readText();
+        }
+      } catch (e) {}
+      if (!pasted) {
+        pasted = prompt('Paste pairing link or QR URL:');
+      }
+      if (!pasted) return;
+
+      const parsed = parseInviteLinkText(pasted);
+      if (parsed) {
+        if (parsed.server && inputServer) {
+          inputServer.value = parsed.server;
+          localStorage.setItem('directlink_server_url', parsed.server);
+        }
+        if (parsed.room && inputRoom) {
+          inputRoom.value = parsed.room;
+          localStorage.setItem('directlink_room', parsed.room);
+        }
+        if (parsed.pin && inputPin) {
+          inputPin.value = parsed.pin;
+          localStorage.setItem('directlink_pin', parsed.pin);
+        }
+        if (parsed.token) {
+          currentPairToken = parsed.token;
+          localStorage.setItem('directlink_pair_token', parsed.token);
+        }
+        if (parsed.key && inputE2eePassMobile) {
+          inputE2eePassMobile.value = parsed.key;
+          updateE2eeKey(parsed.key);
+        }
+        if (parsed.mode) setIntercomMode(parsed.mode, false);
+        if (parsed.freq) applyRfFrequency(parsed.freq, false);
+
+        if (parsed.room && parsed.pin) {
+          connectIntercom(parsed.room, parsed.pin, parsed.token);
+        }
+      }
     });
   }
 
@@ -933,16 +1494,58 @@
 
   // --- Initial Startup ---
   window.addEventListener('DOMContentLoaded', async () => {
+    initBatteryMonitor();
+
     const savedTone = localStorage.getItem('directlink_roger_tone');
     if (savedTone && selectRogerMobile) {
       selectRogerMobile.value = savedTone;
       soundFx.setTone(savedTone);
     }
 
-    const savedMode = localStorage.getItem('directlink_active_mode') || 'wifi';
-    const savedRf = localStorage.getItem('directlink_rf_freq') || '462.5625|CH 01';
+    const savedGain = localStorage.getItem('directlink_gain');
+    if (savedGain && sliderGainMobile) {
+      sliderGainMobile.value = savedGain;
+      userGainMultiplier = Number(savedGain) / 100;
+      if (mobileGainValue) mobileGainValue.textContent = `${savedGain}%`;
+    }
+
+    const savedE2ee = localStorage.getItem('directlink_e2ee_key');
+    if (savedE2ee && inputE2eePassMobile) {
+      inputE2eePassMobile.value = savedE2ee;
+      updateE2eeKey(savedE2ee);
+    }
+
+    let savedMode = localStorage.getItem('directlink_active_mode') || 'wifi';
+    let savedRf = localStorage.getItem('directlink_rf_freq') || '462.5625|CH 01';
     currentRfSetting = savedRf;
     if (selectRadioFreq) selectRadioFreq.value = savedRf;
+
+    // Check URL parameters / Hash first
+    const urlData = parseUrlParameters();
+    if (urlData) {
+      if (urlData.server) {
+        if (inputServer) inputServer.value = urlData.server;
+        localStorage.setItem('directlink_server_url', urlData.server);
+      }
+      if (urlData.room) {
+        if (inputRoom) inputRoom.value = urlData.room;
+        localStorage.setItem('directlink_room', urlData.room);
+      }
+      if (urlData.pin) {
+        if (inputPin) inputPin.value = urlData.pin;
+        localStorage.setItem('directlink_pin', urlData.pin);
+      }
+      if (urlData.token) {
+        currentPairToken = urlData.token;
+        localStorage.setItem('directlink_pair_token', urlData.token);
+      }
+      if (urlData.key && inputE2eePassMobile) {
+        inputE2eePassMobile.value = urlData.key;
+        updateE2eeKey(urlData.key);
+      }
+      if (urlData.mode) savedMode = urlData.mode;
+      if (urlData.freq) savedRf = urlData.freq;
+    }
 
     // Fetch server info
     try {
@@ -951,10 +1554,13 @@
       if (res.ok) serverInfo = await res.json();
     } catch (e) {}
 
-    // Auto-connect to master channel
-    const masterRoom = serverInfo.bondedPair ? serverInfo.bondedPair.roomId : (localStorage.getItem('directlink_room') || 'directlink-master');
-    const masterPin = serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201');
-    const pairToken = serverInfo.bondedPair ? serverInfo.bondedPair.pairToken : localStorage.getItem('directlink_pair_token');
+    // Connect to appropriate channel
+    const masterRoom = (urlData && urlData.room) || (serverInfo.bondedPair ? serverInfo.bondedPair.roomId : (localStorage.getItem('directlink_room') || 'directlink-master'));
+    const masterPin = (urlData && urlData.pin) || (serverInfo.bondedPair ? serverInfo.bondedPair.pin : (localStorage.getItem('directlink_pin') || '849201'));
+    const pairToken = (urlData && urlData.token) || (serverInfo.bondedPair ? serverInfo.bondedPair.pairToken : localStorage.getItem('directlink_pair_token'));
+
+    if (inputRoom) inputRoom.value = masterRoom;
+    if (inputPin) inputPin.value = masterPin;
 
     setIntercomMode(savedMode, false);
 

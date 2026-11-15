@@ -139,8 +139,15 @@ app.get(['/laptop', '/laptop.html', '/desktop', '/pc'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'laptop.html'));
 });
 
+app.get(['/select', '/portal', '/choose'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Root Route: Smart Device Detection
 app.get('/', (req, res) => {
+  if (req.query.select || req.query.choose) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
   const ua = req.headers['user-agent'] || '';
   const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
   if (isMobile) {
@@ -502,6 +509,19 @@ async function startServer() {
             type: 'audio-relay',
             payload: data.payload,
             format: data.format
+          }));
+          break;
+        }
+
+        case 'sos-beacon': {
+          // Emergency tactical distress beacon broadcast
+          if (!currentRoomId) return;
+          broadcastToRoom(currentRoomId, ws, JSON.stringify({
+            type: 'sos-beacon',
+            active: data.active,
+            coords: data.coords,
+            from: data.from,
+            timestamp: data.timestamp || Date.now()
           }));
           break;
         }

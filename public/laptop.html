@@ -35,7 +35,10 @@
       <span id="linkBadge" class="badge badge-link" title="Transport Mode">
         WI-FI LAN
       </span>
-      <a href="/phone" class="btn-switch-link" title="Open Phone Walkie-Talkie">📱 PHONE RADIO</a>
+      <span id="e2eeBadge" class="badge" style="border-color: #38bdf8; color: #38bdf8;" title="Audio Payload Encryption">
+        🔒 E2EE READY
+      </span>
+      <a href="/phone.html" class="btn-switch-link" title="Open Phone Walkie-Talkie Transceiver">📱 PHONE RADIO</a>
     </div>
   </header>
 
@@ -177,7 +180,7 @@
       <!-- Right Column: Control Tower, DSP & Telemetry -->
       <div class="console-sidebar">
 
-        <!-- Audio DSP Controls Card -->
+        <!-- Audio DSP Controls Card (Features 1, 4, 6) -->
         <div class="tactical-hud-card">
           <div class="card-title">
             <span class="icon">🎛️</span> AUDIO DSP &amp; ACOUSTICS
@@ -205,7 +208,33 @@
             </select>
           </div>
 
+          <!-- Feature 1: VOX Sensitivity -->
+          <div class="control-row">
+            <div class="control-label-group">
+              <span class="control-label">VOX SENSITIVITY (HANDS-FREE)</span>
+            </div>
+            <select id="selectVoxSensitivityLaptop" class="tactical-select">
+              <option value="medium">Medium Sensitivity (Normal Speaking Voice)</option>
+              <option value="high">High Sensitivity (Low / Whisper Voice)</option>
+              <option value="low">Low Sensitivity (Noisy Room / Loud Background)</option>
+            </select>
+          </div>
+
+          <!-- Feature 4: E2EE Passphrase -->
+          <div class="control-row">
+            <div class="control-label-group">
+              <span class="control-label">END-TO-END ENCRYPTION KEY</span>
+            </div>
+            <input type="text" id="inputE2eePassLaptop" class="input-field" placeholder="AES-256 Secret Passphrase">
+          </div>
+
+          <!-- Feature 6: Tactical Radio Acoustic Filter Toggle -->
           <div class="toggle-grid">
+            <label class="tactical-checkbox">
+              <input type="checkbox" id="chkRadioFilterLaptop" checked>
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-label">RF Radio Filter</span>
+            </label>
             <label class="tactical-checkbox">
               <input type="checkbox" id="chkEchoCancel" checked>
               <span class="checkbox-custom"></span>
@@ -234,17 +263,17 @@
               <span id="valLatency" class="telemetry-value">-- ms</span>
             </div>
             <div class="telemetry-item">
-              <span class="telemetry-label">TRANSPORT</span>
-              <span id="valTransport" class="telemetry-value">DTLS-SRTP</span>
+              <span class="telemetry-label">VOX STATUS</span>
+              <span id="valVoxState" class="telemetry-value">STANDBY</span>
             </div>
             <div class="telemetry-item">
-              <span class="telemetry-label">ROLE</span>
-              <span class="telemetry-value highlight">COMMAND LAPTOP</span>
+              <span class="telemetry-label">E2EE SECURITY</span>
+              <span id="valE2ee" class="telemetry-value highlight">STANDARD DTLS</span>
             </div>
           </div>
         </div>
 
-        <!-- Station Operations -->
+        <!-- Station Operations (Features 1, 2, 3, 5) -->
         <div class="tactical-hud-card">
           <div class="card-title">
             <span class="icon">⚙️</span> STATION CONTROLS
@@ -253,11 +282,23 @@
             <button id="btnModeLaptop" class="btn-tactical" title="Switch between Hold to Talk and Toggle Handsfree">
               <span>🔄</span> <span id="modeTextLaptop">Hold Mode</span>
             </button>
+            <button id="btnVoxLaptop" class="btn-tactical" title="Toggle Hands-Free Voice-Activated Transmission (VOX)">
+              <span>🗣️</span> <span id="voxTextLaptop">VOX Off</span>
+            </button>
+            <button id="btnReplayLaptop" class="btn-tactical" title="Replay Last Received Audio Transmission" disabled>
+              <span>⏪</span> <span>Replay Last Call</span>
+            </button>
+            <button id="btnSosLaptop" class="btn-tactical danger" title="Trigger Tactical Emergency Distress Beacon">
+              <span>🚨</span> <span>SOS Beacon</span>
+            </button>
             <button id="btnTunnelLaptop" class="btn-tactical" title="Enable Mobile Data Tunnel for 4G/5G">
               <span>🌐</span> <span id="tunnelTextLaptop">Mobile Data WAN</span>
             </button>
-            <button id="btnPairingLaptop" class="btn-tactical primary" title="View Pairing QR Code & Link Info">
+            <button id="btnPairingLaptop" class="btn-tactical primary" title="View Pairing QR Code &amp; Link Info">
               <span>🔗</span> <span>Pair / Link Phone</span>
+            </button>
+            <button id="btnBlePttLaptop" class="btn-tactical" title="Pair Hardware Bluetooth PTT Button">
+              <span>📶</span> <span>Pair BT Button</span>
             </button>
             <button id="btnResetBondLaptop" class="btn-tactical danger" title="Reset Master Bond">
               <span>⚠️</span> <span>Reset Bond</span>
@@ -277,6 +318,34 @@
     </div>
   </main>
 
+  <!-- Feature 5: Emergency Distress SOS Alert Modal -->
+  <div id="modalSosAlertLaptop" class="modal-overlay hidden">
+    <div class="modal-card sos-card" style="border: 2px solid #ef4444; max-width: 440px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+        <span style="font-size: 2rem;">🚨</span>
+        <div>
+          <div style="font-family: var(--font-mono); font-size: 1.1rem; font-weight: 800; color: #f87171;">
+            EMERGENCY DISTRESS BEACON ACTIVE
+          </div>
+          <div id="sosSubtitleLaptop" style="font-family: var(--font-mono); font-size: 0.75rem; color: #fca5a5;">
+            Distress alert broadcast in progress
+          </div>
+        </div>
+      </div>
+      <div id="sosCoordsLaptop" style="font-family: var(--font-mono); font-size: 0.8rem; background: #18090c; border: 1px solid #7f1d1d; padding: 10px; border-radius: 6px; color: #fca5a5; margin-bottom: 12px;">
+        GPS: Acquiring coordinates...
+      </div>
+      <a id="btnSosMapsLaptop" href="#" target="_blank" class="btn-tactical" style="display: none; text-align: center; text-decoration: none; background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5; margin-bottom: 12px;">
+        📍 View Coordinates on Google Maps
+      </a>
+      <div class="modal-actions">
+        <button id="btnCancelSosLaptop" class="btn-primary" style="background: #ef4444; color: #fff;">
+          Silence &amp; Cancel Distress Beacon
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Pairing Modal -->
   <div id="pairingModal" class="modal-overlay hidden">
     <div class="modal-card">
@@ -284,8 +353,18 @@
         <span>Intercom Pairing Setup</span>
       </div>
       <div class="input-group">
-        <label class="input-label" for="inputServer">Signaling Server URL</label>
-        <input type="text" id="inputServer" class="input-field" placeholder="localhost:8080">
+        <label class="input-label" for="selectNetwork">Network Interface (QR &amp; Link Target)</label>
+        <select id="selectNetwork" class="input-field"></select>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label" for="inputServer">Signaling Server URL / IP</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="inputServer" class="input-field" placeholder="192.168.0.142:8080" style="flex: 1;">
+          <button id="btnPasteLinkLaptop" type="button" class="btn-tactical" style="padding: 0 10px; font-size: 11px; white-space: nowrap;">
+            Paste Link
+          </button>
+        </div>
       </div>
       <div class="input-group">
         <label class="input-label" for="inputRoom">Tactical Channel</label>
@@ -316,8 +395,9 @@
     </div>
   </div>
 
-  <!-- Hidden Remote Audio Element for Incoming Peer Speech Stream -->
+  <!-- Audio Elements -->
   <audio id="remoteAudio" autoplay playsinline></audio>
+  <audio id="lastCallAudio" playsinline></audio>
 
   <!-- Scripts -->
   <script src="/sound-effects.js"></script>

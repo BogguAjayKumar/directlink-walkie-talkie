@@ -1,9 +1,13 @@
-const CACHE_NAME = 'directlink-v2';
+const CACHE_NAME = 'directlink-v3';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css',
-  '/app.js',
+  '/laptop.html',
+  '/phone.html',
+  '/laptop.css',
+  '/phone.css',
+  '/laptop.js',
+  '/phone.js',
   '/sound-effects.js',
   '/manifest.json'
 ];

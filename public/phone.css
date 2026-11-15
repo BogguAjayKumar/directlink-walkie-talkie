@@ -320,6 +320,35 @@ body {
   border: 1px solid #475569;
   border-bottom: none;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.knob-indicator {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 6px;
+  background: var(--accent-ready);
+  border-radius: 1px;
+}
+
+.uninterrupted-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 255, 170, 0.05);
+  border: 1px dashed rgba(0, 255, 170, 0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: #6ee7b7;
+  letter-spacing: 0.5px;
 }
 
 /* Tactical Backlit LCD */
@@ -496,6 +525,91 @@ body {
   background: rgba(0, 255, 204, 0.15);
   border-color: var(--accent-ready);
   color: var(--accent-ready);
+}
+
+.btn-dock-action.danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #f87171;
+}
+
+.btn-dock-action.danger.active {
+  background: #ef4444;
+  color: #fff;
+  animation: pulse-red 1s infinite;
+}
+
+.btn-dock-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lcd-indicators {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lcd-badge-tag {
+  font-size: 0.58rem;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  background: rgba(0, 255, 170, 0.15);
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  color: #00ffaa;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.lcd-badge-tag.hidden {
+  display: none !important;
+}
+
+/* SOS Emergency Modal */
+.sos-card {
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.4) !important;
+}
+
+.sos-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sos-title {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f87171;
+  letter-spacing: 1px;
+}
+
+.sos-body {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #fca5a5;
+  line-height: 1.4;
+}
+
+.sos-coords {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: #18090c;
+  border: 1px solid #7f1d1d;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: #fca5a5;
+}
+
+.sos-icon-pulse {
+  font-size: 1.6rem;
+  animation: pulse-red 0.8s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
 }
 
 /* Modals & Drawers */
