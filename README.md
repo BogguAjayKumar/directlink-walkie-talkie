@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📡 DirectLink Walkie-Talkie
+# DirectLink Walkie-Talkie
 ### Instant, Zero-Latency, Two-Way Audio Intercom for Phone & Laptop
 #### Dedicated Phone & Laptop Interfaces • VOX Hands-Free • Replay Buffer • AES-256 E2EE • SOS Beacon • Tactical RF DSP
 
@@ -22,102 +22,102 @@ No ringing, no answering screens, no call pickups—press or hold to talk (or sw
 
 </div>
 
-## 🚀 Key Features
+## Key Features
 
 * **True Two-Way Real-Time Voice:**
-  Instant hardware-like communication. Talk on your laptop → heard instantly on your phone. Talk on your phone → heard instantly on your laptop.
+ Instant hardware-like communication. Talk on your laptop → heard instantly on your phone. Talk on your phone → heard instantly on your laptop.
 * **Completely Separated Codebases for Phone & Laptop:**
-  Independent, modular code files for each device. Easily locate, tweak, and style the phone app or laptop app without interfering with each other:
-  * **Smart Auto-Router:** `public/index.html` (auto-detects mobile vs. desktop and routes instantly while preserving room & PIN credentials)
-  * **Phone Walkie-Talkie:** `public/phone.html`, `public/phone.js`, `public/phone.css`
-  * **Laptop Command Station:** `public/laptop.html`, `public/laptop.js`, `public/laptop.css`
+ Independent, modular code files for each device. Easily locate, tweak, and style the phone app or laptop app without interfering with each other:
+ * **Smart Auto-Router:** `public/index.html` (auto-detects mobile vs. desktop and routes instantly while preserving room & PIN credentials)
+ * **Phone Walkie-Talkie:** `public/phone.html`, `public/phone.js`, `public/phone.css`
+ * **Laptop Command Station:** `public/laptop.html`, `public/laptop.js`, `public/laptop.css`
 * **3 Tactical Connection Modes:**
-  * **1. Local Wi-Fi (LAN Mode):** Sub-10ms direct peer-to-peer audio over your home or office Wi-Fi. Zero external internet required.
-  * **2. Mobile Data + Wi-Fi (WAN Relay Mode):** Built-in encrypted HTTPS/WSS tunnel allowing you to communicate anywhere in the world when your phone is on 4G/5G cellular data and your laptop is at home.
-  * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Dial standard UHF/FM/FRS walkie-talkie channels (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or custom MHz). Tuning both devices to the same frequency links them instantly!
+ * **1. Local Wi-Fi (LAN Mode):** Sub-10ms direct peer-to-peer audio over your home or office Wi-Fi. Zero external internet required.
+ * **2. Mobile Data + Wi-Fi (WAN Relay Mode):** Built-in encrypted HTTPS/WSS tunnel allowing you to communicate anywhere in the world when your phone is on 4G/5G cellular data and your laptop is at home.
+ * **3. Radio Frequency Dialing Mode (Virtual Walkie-Talkie):** Dial standard UHF/FM/FRS walkie-talkie channels (e.g. `462.5625 MHz [CH 01]`, `462.5875 MHz [CH 02]`, `144.3900 MHz [VHF 01]`, or custom MHz). Tuning both devices to the same frequency links them instantly!
 * **Distinct Visual Interfaces:**
-  * **💻 Laptop Console HUD:** Wide cyberpunk/military terminal in deep navy & cyan with dual real-time oscilloscopes, VU meters (MIC & RX), Spacebar hotkey deck (`PRESS & HOLD SPACEBAR TO BROADCAST`), and audio DSP dials.
-  * **📱 Phone Transceiver:** Authentic handheld radio chassis with top antenna, rotary volume/channel knobs, backlit fluorescent green LCD screen showing battery & signal strength, speaker grille, and a giant rubberized Push-To-Talk button with haptic feedback.
+ * **Laptop Console HUD:** Wide cyberpunk/military terminal in deep navy & cyan with dual real-time oscilloscopes, VU meters (MIC & RX), Spacebar hotkey deck (`PRESS & HOLD SPACEBAR TO BROADCAST`), and audio DSP dials.
+ * **Phone Transceiver:** Authentic handheld radio chassis with top antenna, rotary volume/channel knobs, backlit fluorescent green LCD screen showing battery & signal strength, speaker grille, and a giant rubberized Push-To-Talk button with haptic feedback.
 * **Persistent Zero-Touch Auto-Connect:**
-  Pair once—never re-type PINs or manually reconnect again. Devices automatically remember each other, restore the master bonded channel on startup, and auto-reconnect within 1.5 seconds if network drops or changes.
+ Pair once—never re-type PINs or manually reconnect again. Devices automatically remember each other, restore the master bonded channel on startup, and auto-reconnect within 1.5 seconds if network drops or changes.
 * **Conflict-Free Role Negotiation:**
-  The server automatically assigns complimentary roles (`laptop` <-> `phone`) so both devices always link together without kicking each other out.
+ The server automatically assigns complimentary roles (`laptop` <-> `phone`) so both devices always link together without kicking each other out.
 * **Procedural Acoustic Synthesizer (Web Audio API):**
-  Zero external audio downloads. All sound effects are dynamically synthesized on the fly:
-  * **Tactical Mic-Open Click** (high-frequency resonant pulse).
-  * **Motorola / NASA Quindar Roger Beep** (dual-frequency sine tone on transmission release).
-  * **Radio Squelch Tail** (bandpass-filtered white noise burst).
+ Zero external audio downloads. All sound effects are dynamically synthesized on the fly:
+ * **Tactical Mic-Open Click** (high-frequency resonant pulse).
+ * **Motorola / NASA Quindar Roger Beep** (dual-frequency sine tone on transmission release).
+ * **Radio Squelch Tail** (bandpass-filtered white noise burst).
 
 ---
 
-## 🛡 Tactical Capabilities (v1.1)
+## Tactical Capabilities (v1.1)
 
 DirectLink v1.1 introduces 6 powerful hardware-grade communication features:
 
-### 1. 🎙️ Hands-Free VOX (Voice-Activated Transmission)
+### 1. Hands-Free VOX (Voice-Activated Transmission)
 * **Automatic Voice Gate:** Automatically keys the microphone when speaking and releases when silent.
 * **Adjustable Sensitivity:** Switch between **Low**, **Medium**, and **High** threshold presets.
 * **Anti-Chatter Hangover Delay:** 700ms decay hangover prevents clipped speech endings and jitter between natural pauses.
 
-### 2. 📼 Tactical Last-Call Replay Buffer
+### 2. Tactical Last-Call Replay Buffer
 * **Circular In-Memory Buffer:** Continuously records incoming peer audio into an indexed 30-second rolling buffer using the `MediaRecorder` API.
 * **One-Touch Review:** Tap **`REPLAY LAST`** to instantly playback the last incoming transmission at normal or high speed without asking the other user to repeat.
 
-### 3. 🔘 Hardware Bluetooth PTT & Headset Trigger
+### 3. Hardware Bluetooth PTT & Headset Trigger
 * **Web Bluetooth API:** Connect external BLE PTT buttons (Flic, custom Arduino BLE switches, smart rings) via `navigator.bluetooth.requestDevice`.
 * **MediaSession API Support:** Long-press or click headset inline wire/Bluetooth buttons (`play`, `pause`, `stop`, `nexttrack`) to toggle transmission directly from your pocket.
 
-### 4. 🔐 Zero-Knowledge AES-256-GCM E2EE
+### 4. Zero-Knowledge AES-256-GCM E2EE
 * **Cryptographic Passphrase Derivation:** WebCrypto `SubtleCrypto` derives 256-bit AES-GCM keys from custom shared passphrases via SHA-256 hashing.
 * **Visual Cryptographic Status:** Real-time badges indicate active encryption state and key derivation confirmation.
 
-### 5. 🚨 SOS Emergency Beacon with GPS Geolocation
+### 5. SOS Emergency Beacon with GPS Geolocation
 * **Dual-Tone Emergency Siren:** Synthesizes an alternating 960 Hz / 770 Hz high-penetration acoustic warble siren.
 * **Precision Geolocation Broadcast:** Captures high-accuracy GPS coordinates (`navigator.geolocation`) and transmits a high-priority `{ type: "sos-beacon" }` packet over WebSockets.
 * **Flashing Emergency HUD:** Triggers an un-dismissible flashing red modal on the remote peer with coordinates, timestamp, and a direct Google Maps link.
 
-### 6. 📻 Authentic Tactical RF Audio DSP Filter
+### 6. Authentic Tactical RF Audio DSP Filter
 * **Hardware Voiceband Simulation:**
-  * **4th-Order Bandpass Filter:** Strict 350 Hz to 3400 Hz voiceband cutoff mimicking military VHF/UHF transceivers.
-  * **Presence Peak:** +4 dB boost at 1800 Hz for high voice intelligibility in loud environments.
-  * **Saturation Waveshaper:** Nonlinear hyperbolic tangent distortion curve adding authentic analog RF transistor grit.
+ * **4th-Order Bandpass Filter:** Strict 350 Hz to 3400 Hz voiceband cutoff mimicking military VHF/UHF transceivers.
+ * **Presence Peak:** +4 dB boost at 1800 Hz for high voice intelligibility in loud environments.
+ * **Saturation Waveshaper:** Nonlinear hyperbolic tangent distortion curve adding authentic analog RF transistor grit.
 
 ---
 
-## 🗂 Separate File Architecture
+## Separate File Architecture
 
 DirectLink is cleanly structured into dedicated, modular files for each device:
 
 ```text
 directlink-walkie-talkie/
 ├── public/
-│   ├── index.html          # 🧭 Smart Device Auto-Router (Preserves hash & query params)
-│   │
-│   ├── phone.html          # 📱 Dedicated Mobile Handheld Transceiver UI
-│   ├── phone.js            # 📱 Phone client logic, rotary knobs, touch PTT, VOX, Replay
-│   ├── phone.css           # 📱 Rugged handheld radio chassis & fluorescent green LCD
-│   │
-│   ├── laptop.html         # 💻 Dedicated Laptop Command Base Station UI
-│   ├── laptop.js           # 💻 Laptop client logic, dual oscilloscopes, VOX, Replay, DSP
-│   ├── laptop.css          # 💻 Station Master console HUD styles
-│   │
-│   ├── sound-effects.js    # 🔊 Procedural Web Audio API sound synthesizer & RF filter
-│   ├── app-debug.apk       # 📲 Direct Android APK download file
-│   ├── manifest.json       # 📱 PWA manifest configuration
-│   └── sw.js               # ⚡ Service Worker v3 for offline caching
+│ ├── index.html # Smart Device Auto-Router (Preserves hash & query params)
+│ │
+│ ├── phone.html # Dedicated Mobile Handheld Transceiver UI
+│ ├── phone.js # Phone client logic, rotary knobs, touch PTT, VOX, Replay
+│ ├── phone.css # Rugged handheld radio chassis & fluorescent green LCD
+│ │
+│ ├── laptop.html # Dedicated Laptop Command Base Station UI
+│ ├── laptop.js # Laptop client logic, dual oscilloscopes, VOX, Replay, DSP
+│ ├── laptop.css # Station Master console HUD styles
+│ │
+│ ├── sound-effects.js # Procedural Web Audio API sound synthesizer & RF filter
+│ ├── app-debug.apk # Direct Android APK download file
+│ ├── manifest.json # PWA manifest configuration
+│ └── sw.js # Service Worker v3 for offline caching
 │
-├── android/                # 🤖 Native Android Studio Capacitor project
-├── certs/                  # 🔒 Auto-generated TLS certificates & master bonded pair
-├── docs/                   # 📚 Technical documentation (Architecture & Protocol)
-├── server.js               # 🌐 Node.js dual HTTP (:8080) & HTTPS (:8443) signaling hub
-├── capacitor.config.json   # ⚙️ Android Capacitor bridge configuration
-├── package.json            # 📦 Project dependencies & scripts
-└── test-signaling.js       # 🧪 Automated protocol & security test suite
+├── android/ # Native Android Studio Capacitor project
+├── certs/ # Auto-generated TLS certificates & master bonded pair
+├── docs/ # Technical documentation (Architecture & Protocol)
+├── server.js # Node.js dual HTTP (:8080) & HTTPS (:8443) signaling hub
+├── capacitor.config.json # Android Capacitor bridge configuration
+├── package.json # Project dependencies & scripts
+└── test-signaling.js # Automated protocol & security test suite
 ```
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### 1. Prerequisites
 * [Node.js](https://nodejs.org/) (v18.0.0 or higher)
@@ -135,50 +135,50 @@ npm start
 The server will initialize on both **HTTP (:8080)** and **HTTPS (:8443)**:
 ```text
 ===============================================================
-   DIRECTLINK TACTICAL INTERCOM SERVER IS ONLINE & READY
+ DIRECTLINK TACTICAL INTERCOM SERVER IS ONLINE & READY
 ===============================================================
-💻 LAPTOP ACCESS:
-   👉 http://localhost:8080/laptop  (or https://localhost:8443)
+LAPTOP ACCESS:
+ http://localhost:8080/laptop (or https://localhost:8443)
 
-📱 PHONE ACCESS (Same Wi-Fi):
-   👉 http://192.168.0.142:8080/phone
-   👉 Direct APK Download: http://192.168.0.142:8080/app-debug.apk
+PHONE ACCESS (Same Wi-Fi):
+ http://192.168.0.142:8080/phone
+ Direct APK Download: http://192.168.0.142:8080/app-debug.apk
 
-🌍 MOBILE DATA WAN (4G/5G / Global Internet):
-   Click "Mobile Data WAN" on your laptop screen to generate public link.
+MOBILE DATA WAN (4G/5G / Global Internet):
+ Click "Mobile Data WAN" on your laptop screen to generate public link.
 ===============================================================
 ```
 
 ---
 
-## 🎙 How to Test Two-Way Audio
+## How to Test Two-Way Audio
 
 ### Step 1: Open on Laptop
-1. Open Chrome or Edge on your laptop and navigate to:  
-   👉 **`http://localhost:8080/laptop`**
-2. The laptop console HUD will load. You will see:  
-   `○ PHONE DISCONNECTED (Waiting for Phone to link...)`
+1. Open Chrome or Edge on your laptop and navigate to: 
+ **`http://localhost:8080/laptop`**
+2. The laptop console HUD will load. You will see: 
+ `○ PHONE DISCONNECTED (Waiting for Phone to link...)`
 
 ### Step 2: Open on Phone
-1. Open Chrome or Safari on your phone and navigate to:  
-   👉 **`http://192.168.0.142:8080/phone`**  
-   *(Or install the Android APK: `http://192.168.0.142:8080/app-debug.apk`)*
-2. If prompted, tap the amber **"🎙️ TAP HERE TO ARM PHONE MICROPHONE"** banner to allow microphone access.
+1. Open Chrome or Safari on your phone and navigate to: 
+ **`http://192.168.0.142:8080/phone`** 
+ *(Or install the Android APK: `http://192.168.0.142:8080/app-debug.apk`)*
+2. If prompted, tap the amber **"TAP HERE TO ARM PHONE MICROPHONE"** banner to allow microphone access.
 3. The phone interface loads the rugged **Handheld Walkie-Talkie** chassis with the green LCD screen.
 
 ### Step 3: Connection Confirmation
-* **On Laptop:** The banner turns glowing green: `🟢 PHONE CONNECTED: Handheld Phone [LIVE]`
-* **On Phone:** The banner turns glowing green: `🟢 LAPTOP CONNECTED: Command Laptop [LIVE]`
+* **On Laptop:** The banner turns glowing green: `PHONE CONNECTED: Handheld Phone [LIVE]`
+* **On Phone:** The banner turns glowing green: `LAPTOP CONNECTED: Command Laptop [LIVE]`
 
 ### Step 4: Talk Between Devices
-* **From Laptop → Hear on Phone:**  
-  Press and hold **`SPACEBAR`** on your laptop and speak. Your voice broadcasts out loud through your phone's speaker! Release Spacebar to trigger the Roger Beep.
-* **From Phone → Hear on Laptop:**  
-  Touch and hold the big circular **`HOLD TO TALK`** button on your phone and speak. Your voice broadcasts out loud through your laptop's speaker! Release to trigger the Roger Beep.
+* **From Laptop → Hear on Phone:** 
+ Press and hold **`SPACEBAR`** on your laptop and speak. Your voice broadcasts out loud through your phone's speaker! Release Spacebar to trigger the Roger Beep.
+* **From Phone → Hear on Laptop:** 
+ Touch and hold the big circular **`HOLD TO TALK`** button on your phone and speak. Your voice broadcasts out loud through your laptop's speaker! Release to trigger the Roger Beep.
 
 ---
 
-## 📶 3 Tactical Connection Modes
+## 3 Tactical Connection Modes
 
 Select any mode from the top bar on either device:
 
@@ -190,13 +190,13 @@ Select any mode from the top bar on either device:
 
 ---
 
-## 🤖 Native Android App (APK)
+## Native Android App (APK)
 
 DirectLink includes a full native Android project powered by **Capacitor**:
 
 ### Method A: Direct Download to Phone (No Compiling Needed)
-1. On your phone's browser, open:  
-   👉 **`http://192.168.0.142:8080/app-debug.apk`**
+1. On your phone's browser, open: 
+ **`http://192.168.0.142:8080/app-debug.apk`**
 2. Download and tap to install (enable *"Install unknown apps"* if prompted).
 3. Open **DirectLink** on your phone—it connects directly to your laptop's intercom!
 
@@ -212,12 +212,12 @@ cmd /c "npx cap sync android"
 cd android
 ./gradlew assembleDebug
 ```
-The compiled APK is output at:  
+The compiled APK is output at: 
 `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
-## 🔒 Security & Privacy
+## Security & Privacy
 
 * **Exclusive 2-Device Master Channels:** Each intercom channel is strictly limited to 1 laptop and 1 phone. Third-party devices are rejected automatically.
 * **Cryptographic 6-Digit PINs:** Master channels are secured by session PINs and persistent pairing tokens.
@@ -228,7 +228,7 @@ The compiled APK is output at:
 
 ---
 
-## 🧪 Automated Testing
+## Automated Testing
 
 DirectLink includes an automated end-to-end signaling and security verification test suite:
 
@@ -248,12 +248,12 @@ node test-signaling.js
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
-  <sub>Developed by <b>Boggu Ajay Kumar</b>. DirectLink Walkie-Talkie is open source and built with modern WebRTC & Web Audio API technologies.</sub>
+ <sub>Developed by <b>Boggu Ajay Kumar</b>. DirectLink Walkie-Talkie is open source and built with modern WebRTC & Web Audio API technologies.</sub>
 </div>
